@@ -28,6 +28,7 @@ COGS = [
     "cogs.ai_chat",
     "cogs.market",
     "cogs.applications",
+    "cogs.tickets",
 ]
 
 

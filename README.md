@@ -1,6 +1,6 @@
 # Project CYPHER — Discord Bot
 
-A production-grade Discord bot for a private gaming community. Cyberpunk aesthetic, full economy, XP ranks, moderation, mini-games, a live stock market, AI chat, and a DM-based moderator application system.
+A production-grade Discord bot for a private gaming community. Cyberpunk aesthetic, full economy, XP ranks, moderation, mini-games, a live stock market, AI chat, a DM-based moderator application system, a button-panel ticket system, and a confidential member report system.
 
 ---
 
@@ -50,6 +50,17 @@ Enable all three in the [Discord Developer Portal](https://discord.com/developer
    ```
    /appsetup setchannel #your-applications-channel
    ```
+9. Set up the ticket system:
+   ```
+   /ticketsetup setcategory <category>
+   /ticketsetup setlogchannel #ticket-logs
+   /ticketsetup panel #support
+   ```
+10. Set up the report system:
+    ```
+    /reportsetup setchannel #staff-reports
+    /reportsetup panel #report-a-member
+    ```
 
 ---
 
@@ -75,6 +86,26 @@ Enable all three in the [Discord Developer Portal](https://discord.com/developer
 |---|---|
 | `/delwarn <log_id>` | Delete a specific warning by log ID. |
 | `/unban <user_id> [reason]` | Unban a user by their Discord snowflake ID. |
+
+### Tickets
+| Command | Who | Description |
+|---|---|---|
+| *(button panel)* | Any member | Click **Open Ticket** on the panel to create a private channel. |
+| *(Close Ticket button)* | Owner or staff | Logs the closure and deletes the channel after 5 seconds. |
+| `/ticketsetup panel <channel>` | Admin | Post the ticket-open panel in a channel. |
+| `/ticketsetup setcategory <category>` | Admin | Set the Discord category where ticket channels are created. |
+| `/ticketsetup setlogchannel <channel>` | Admin | Set the staff channel where ticket closures are logged. |
+
+Each ticket creates a private channel named `ticket-XXXX-username` visible only to the opener, mod/admin roles, and the bot. Tickets are tracked in the database — one open ticket per user is enforced. The channel is deleted automatically on close.
+
+### Reports
+| Command | Who | Description |
+|---|---|---|
+| *(button panel)* | Any member | Click **Submit Report** on the panel to start a confidential DM-based report. |
+| `/reportsetup panel <channel>` | Admin | Post the report panel in a channel. |
+| `/reportsetup setchannel <channel>` | Admin | Set the staff-only channel where completed reports are posted. |
+
+The report flow asks 4 questions over DM (who, which rule, what happened, evidence). The completed report is posted as a formatted embed to the configured staff channel. The reporter's identity is visible to staff but the process is invisible to other members.
 
 ### Moderator Applications
 | Command | Who | Description |

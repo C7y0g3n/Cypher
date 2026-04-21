@@ -640,6 +640,42 @@ class Database:
         log.info(f"Seeded default shop items for guild {guild_id}")
 
 
+    # ─── Tickets ──────────────────────────────────────────────────────────────
+
+    async def create_ticket(self, guild_id: int, user_id: int, channel_id: int) -> int:
+        cur = await self._conn.execute(
+            "INSERT INTO tickets (guild_id, user_id, channel_id, created_at) VALUES (?, ?, ?, ?)",
+            (guild_id, user_id, channel_id, _now()),
+        )
+        return cur.lastrowid
+
+    async def get_open_ticket_by_user(self, guild_id: int, user_id: int) -> Optional[aiosqlite.Row]:
+        async with self._conn.execute(
+            "SELECT * FROM tickets WHERE guild_id=? AND user_id=? AND closed_at IS NULL",
+            (guild_id, user_id),
+        ) as cur:
+            return await cur.fetchone()
+
+    async def get_ticket_by_channel(self, channel_id: int) -> Optional[aiosqlite.Row]:
+        async with self._conn.execute(
+            "SELECT * FROM tickets WHERE channel_id=?", (channel_id,)
+        ) as cur:
+            return await cur.fetchone()
+
+    async def close_ticket(self, channel_id: int, closed_by_id: int) -> bool:
+        cur = await self._conn.execute(
+            "UPDATE tickets SET closed_at=?, closed_by=? WHERE channel_id=? AND closed_at IS NULL",
+            (_now(), closed_by_id, channel_id),
+        )
+        return cur.rowcount > 0
+
+    async def next_ticket_number(self, guild_id: int) -> int:
+        async with self._conn.execute(
+            "SELECT COUNT(*) as c FROM tickets WHERE guild_id=?", (guild_id,)
+        ) as cur:
+            row = await cur.fetchone()
+            return (row["c"] or 0) + 1
+
 def _now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
