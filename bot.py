@@ -20,6 +20,7 @@ logging.basicConfig(level=logging.INFO, handlers=[_handler, logging.StreamHandle
 log = logging.getLogger("cypher")
 
 COGS = [
+    "cogs.help",
     "cogs.admin",
     "cogs.xp_ranks",
     "cogs.economy",
