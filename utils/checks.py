@@ -2,6 +2,8 @@ import discord
 from discord import app_commands
 from discord.ext import commands
 
+import config
+
 
 async def _get_role_id(interaction_or_ctx, key: str) -> int | None:
     if isinstance(interaction_or_ctx, discord.Interaction):
@@ -22,8 +24,14 @@ async def _has_role(member: discord.Member, role_id: int | None) -> bool:
 
 # ─── Slash command checks ─────────────────────────────────────────────────────
 
+def _is_whitelisted(user_id: int) -> bool:
+    return user_id in config.ADMIN_USER_IDS
+
+
 def is_admin():
     async def predicate(interaction: discord.Interaction) -> bool:
+        if _is_whitelisted(interaction.user.id):
+            return True
         if interaction.guild.owner_id == interaction.user.id:
             return True
         role_id = await _get_role_id(interaction, "admin_role_id")
@@ -34,6 +42,8 @@ def is_admin():
 
 def is_mod():
     async def predicate(interaction: discord.Interaction) -> bool:
+        if _is_whitelisted(interaction.user.id):
+            return True
         if interaction.guild.owner_id == interaction.user.id:
             return True
         admin_id = await _get_role_id(interaction, "admin_role_id")
@@ -49,6 +59,8 @@ def is_mod():
 
 def prefix_is_admin():
     async def predicate(ctx: commands.Context) -> bool:
+        if _is_whitelisted(ctx.author.id):
+            return True
         if ctx.guild.owner_id == ctx.author.id:
             return True
         role_id = await _get_role_id(ctx, "admin_role_id")
@@ -59,6 +71,8 @@ def prefix_is_admin():
 
 def prefix_is_mod():
     async def predicate(ctx: commands.Context) -> bool:
+        if _is_whitelisted(ctx.author.id):
+            return True
         if ctx.guild.owner_id == ctx.author.id:
             return True
         admin_id = await _get_role_id(ctx, "admin_role_id")

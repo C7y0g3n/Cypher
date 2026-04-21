@@ -31,6 +31,11 @@ RANK_THRESHOLDS: dict[int, tuple[str, int]] = {
     6: ("The Overclocked", 35000),
 }
 
+_raw_admin_ids = os.getenv("ADMIN_USER_IDS", "")
+ADMIN_USER_IDS: frozenset[int] = frozenset(
+    int(i.strip()) for i in _raw_admin_ids.split(",") if i.strip().isdigit()
+)
+
 GEMINI_API_KEY: str = os.getenv("GEMINI_API_KEY", "")
 GEMINI_MODEL: str = os.getenv("GEMINI_MODEL", "gemini-2.0-flash-lite")
 
