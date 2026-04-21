@@ -32,7 +32,7 @@ RANK_THRESHOLDS: dict[int, tuple[str, int]] = {
 }
 
 HF_API_TOKEN: str = os.getenv("HF_API_TOKEN", "")
-HF_MODEL_ID: str = os.getenv("HF_MODEL_ID", "mistralai/Mistral-7B-Instruct-v0.3")
+HF_MODEL_ID: str = os.getenv("HF_MODEL_ID", "HuggingFaceH4/zephyr-7b-beta")
 
 CONFIG_DEFAULTS: dict[str, str] = {
     "log_channel_id": str(LOG_CHANNEL_ID) if LOG_CHANNEL_ID else "",

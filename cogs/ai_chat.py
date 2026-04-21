@@ -23,9 +23,10 @@ class AIChatCog(commands.Cog, name="AI"):
 
     def _build_prompt(self, message: str) -> str:
         return (
-            "[INST] You are Cypher, a helpful and friendly AI assistant living inside a Discord server. "
-            "Respond conversationally and concisely.\n\n"
-            f"{message} [/INST]"
+            "<|system|>\nYou are Cypher, a helpful and friendly AI assistant living inside a Discord server. "
+            "Respond conversationally and concisely.</s>\n"
+            f"<|user|>\n{message}</s>\n"
+            "<|assistant|>\n"
         )
 
     @app_commands.command(name="ask", description="Chat with Cypher AI.")
