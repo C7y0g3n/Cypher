@@ -5,6 +5,7 @@ import discord
 from discord import app_commands
 from discord.ext import commands
 
+from inference.engine import RateLimitError
 from utils.embeds import build_embed, error_embed
 
 log = logging.getLogger("cypher.ai_chat")
@@ -49,9 +50,12 @@ class AIChatCog(commands.Cog, name="AI"):
 
         try:
             reply = await self._engine.generate(prompt, max_new_tokens=512)
+        except RateLimitError as exc:
+            await interaction.followup.send(embed=error_embed(str(exc)), ephemeral=True)
+            return
         except Exception as exc:
             log.error(f"AI inference error: {exc}", exc_info=True)
-            await interaction.followup.send(embed=error_embed(f"Something went wrong: `{exc}`"))
+            await interaction.followup.send(embed=error_embed("AI request failed — please try again later."), ephemeral=True)
             return
 
         elapsed = time.perf_counter() - start

@@ -5,8 +5,14 @@ import aiohttp
 
 log = logging.getLogger("cypher.ai")
 
-_MAX_RETRIES = 3
+_MAX_RETRIES = 4
 _RATE_LIMIT_DEFAULT = 60.0
+_RATE_LIMIT_MIN = 30.0
+
+class RateLimitError(RuntimeError):
+    def __str__(self):
+        return "Gemini is rate limited right now — try again in a minute."
+
 
 _SYSTEM_PROMPT = (
     "You are Cypher, a helpful and friendly AI assistant living inside a Discord server. "
@@ -53,18 +59,21 @@ class GeminiClient:
                             for detail in body.get("error", {}).get("details", []):
                                 delay = detail.get("retryDelay", "")
                                 if delay:
-                                    wait = float(delay.rstrip("s"))
+                                    wait = max(float(delay.rstrip("s")), _RATE_LIMIT_MIN)
                                     break
                         except Exception:
                             pass
                         log.warning(f"Gemini rate limited — waiting {wait:.0f}s (attempt {attempt}/{_MAX_RETRIES})")
-                        await asyncio.sleep(wait)
+                        if attempt < _MAX_RETRIES:
+                            await asyncio.sleep(wait)
+                        else:
+                            raise RateLimitError()
 
                     else:
                         text = await resp.text()
                         raise RuntimeError(f"Gemini API {resp.status}: {text}")
 
-        raise RuntimeError(f"Gemini API did not respond after {_MAX_RETRIES} attempts")
+        raise RateLimitError()
 
     # Keep attribute name consistent with what ai_chat.py displays in the footer
     @property
