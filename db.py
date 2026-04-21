@@ -23,13 +23,27 @@ class Database:
         self._conn.row_factory = aiosqlite.Row
         await self._conn.execute("PRAGMA journal_mode=WAL")
         await self._conn.execute("PRAGMA foreign_keys=ON")
+        # Checkpoint any existing WAL into the main db file so data isn't lost
+        # if the process was previously killed before a clean checkpoint occurred.
+        await self._conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
         await self._run_migrations()
         log.info(f"Database initialized: {self.db_path}")
 
     async def _run_migrations(self):
+        await self._conn.execute(
+            "CREATE TABLE IF NOT EXISTS schema_migrations (name TEXT PRIMARY KEY)"
+        )
         for mf in sorted(MIGRATIONS_PATH.glob("*.sql")):
+            async with self._conn.execute(
+                "SELECT 1 FROM schema_migrations WHERE name=?", (mf.name,)
+            ) as cur:
+                if await cur.fetchone():
+                    continue
             sql = mf.read_text(encoding="utf-8")
             await self._conn.executescript(sql)
+            await self._conn.execute(
+                "INSERT OR IGNORE INTO schema_migrations (name) VALUES (?)", (mf.name,)
+            )
             log.info(f"Ran migration: {mf.name}")
 
     async def close(self):

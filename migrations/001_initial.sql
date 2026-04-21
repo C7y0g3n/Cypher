@@ -1,6 +1,3 @@
-PRAGMA journal_mode=WAL;
-PRAGMA foreign_keys=ON;
-
 CREATE TABLE IF NOT EXISTS users (
     user_id         INTEGER NOT NULL,
     guild_id        INTEGER NOT NULL,
