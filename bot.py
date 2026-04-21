@@ -27,6 +27,7 @@ COGS = [
     "cogs.games",
     "cogs.ai_chat",
     "cogs.market",
+    "cogs.applications",
 ]
 
 
