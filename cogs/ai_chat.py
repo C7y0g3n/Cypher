@@ -26,7 +26,7 @@ class AIChatCog(commands.Cog, name="AI"):
 
     @app_commands.command(name="ask", description="Chat with Cypher AI.")
     @app_commands.describe(message="What do you want to ask or talk about?")
-    @app_commands.checks.cooldown(rate=1, per=15, key=lambda i: i.user.id)
+    @app_commands.checks.cooldown(rate=1, per=30, key=lambda i: i.user.id)
     async def ask(self, interaction: discord.Interaction, message: str) -> None:
         if self._engine is None:
             await interaction.response.send_message(

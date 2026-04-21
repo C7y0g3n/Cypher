@@ -47,7 +47,16 @@ class GeminiClient:
                             return str(data)
 
                     elif resp.status == 429:
-                        wait = float(resp.headers.get("Retry-After", _RATE_LIMIT_DEFAULT))
+                        wait = _RATE_LIMIT_DEFAULT
+                        try:
+                            body = await resp.json()
+                            for detail in body.get("error", {}).get("details", []):
+                                delay = detail.get("retryDelay", "")
+                                if delay:
+                                    wait = float(delay.rstrip("s"))
+                                    break
+                        except Exception:
+                            pass
                         log.warning(f"Gemini rate limited — waiting {wait:.0f}s (attempt {attempt}/{_MAX_RETRIES})")
                         await asyncio.sleep(wait)
 
