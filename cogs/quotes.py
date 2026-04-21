@@ -20,6 +20,8 @@ class Quotes(commands.Cog):
             name="Quote this",
             callback=self.quote_message,
         )
+
+    async def cog_load(self):
         self.bot.tree.add_command(self.ctx_menu)
 
     async def cog_unload(self):
