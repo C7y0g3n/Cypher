@@ -443,6 +443,182 @@ class Database:
             if not exists:
                 await self.set_config(guild_id, key, str(value))
 
+    # ─── Stocks ───────────────────────────────────────────────────────────────
+
+    async def seed_stocks(self, guild_id: int):
+        async with self._conn.execute(
+            "SELECT COUNT(*) as c FROM stocks WHERE guild_id=?", (guild_id,)
+        ) as cur:
+            row = await cur.fetchone()
+        if row["c"] > 0:
+            return
+        defaults = [
+            ("NEON", "NeonTech Industries",  100,  0.08),
+            ("GRID", "GridCore Systems",     250,  0.06),
+            ("CYPH", "CypherData Corp",      500,  0.10),
+            ("WIRE", "WireNet Solutions",     75,  0.12),
+            ("ARCH", "Archon AI",           1000,  0.07),
+            ("VOID", "VoidSec Holdings",     150,  0.15),
+        ]
+        for ticker, name, price, vol in defaults:
+            await self._conn.execute(
+                "INSERT OR IGNORE INTO stocks (ticker, guild_id, name, price, prev_price, base_price, volatility) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?)",
+                (ticker, guild_id, name, price, price, price, vol),
+            )
+        log.info(f"Seeded default stocks for guild {guild_id}")
+
+    async def get_stocks(self, guild_id: int):
+        async with self._conn.execute(
+            "SELECT * FROM stocks WHERE guild_id=? ORDER BY ticker", (guild_id,)
+        ) as cur:
+            return await cur.fetchall()
+
+    async def get_stock(self, guild_id: int, ticker: str) -> Optional[aiosqlite.Row]:
+        async with self._conn.execute(
+            "SELECT * FROM stocks WHERE guild_id=? AND ticker=?", (guild_id, ticker.upper())
+        ) as cur:
+            return await cur.fetchone()
+
+    async def update_stock_price(self, guild_id: int, ticker: str, new_price: int):
+        await self._conn.execute(
+            "UPDATE stocks SET prev_price=price, price=? WHERE guild_id=? AND ticker=?",
+            (new_price, guild_id, ticker),
+        )
+
+    async def add_stock_history(self, guild_id: int, ticker: str, price: int):
+        await self._conn.execute(
+            "INSERT INTO stock_history (ticker, guild_id, price, recorded_at) VALUES (?, ?, ?, ?)",
+            (ticker, guild_id, price, _now()),
+        )
+        # Keep only last 48 entries per stock
+        await self._conn.execute(
+            "DELETE FROM stock_history WHERE history_id NOT IN ("
+            "  SELECT history_id FROM stock_history WHERE ticker=? AND guild_id=? "
+            "  ORDER BY recorded_at DESC LIMIT 48"
+            ")",
+            (ticker, guild_id),
+        )
+
+    async def get_stock_history(self, guild_id: int, ticker: str, limit: int = 10):
+        async with self._conn.execute(
+            "SELECT price, recorded_at FROM stock_history "
+            "WHERE guild_id=? AND ticker=? ORDER BY recorded_at DESC LIMIT ?",
+            (guild_id, ticker, limit),
+        ) as cur:
+            return await cur.fetchall()
+
+    async def get_holding(self, user_id: int, guild_id: int, ticker: str) -> Optional[aiosqlite.Row]:
+        async with self._conn.execute(
+            "SELECT * FROM stock_holdings WHERE user_id=? AND guild_id=? AND ticker=?",
+            (user_id, guild_id, ticker.upper()),
+        ) as cur:
+            return await cur.fetchone()
+
+    async def get_holdings(self, user_id: int, guild_id: int):
+        async with self._conn.execute(
+            "SELECT h.*, s.name, s.price as current_price "
+            "FROM stock_holdings h JOIN stocks s ON h.ticker=s.ticker AND h.guild_id=s.guild_id "
+            "WHERE h.user_id=? AND h.guild_id=? AND h.shares > 0 ORDER BY h.ticker",
+            (user_id, guild_id),
+        ) as cur:
+            return await cur.fetchall()
+
+    async def buy_stock(
+        self, user_id: int, guild_id: int, ticker: str, shares: int, cost_cc: int
+    ) -> tuple[bool, str]:
+        """Atomically deduct cost_cc from credits and add shares. Returns (ok, reason)."""
+        await self.ensure_user(user_id, guild_id)
+        ticker = ticker.upper()
+        async with self._lock:
+            await self._conn.execute("BEGIN IMMEDIATE")
+            try:
+                async with self._conn.execute(
+                    "SELECT credits FROM users WHERE user_id=? AND guild_id=?",
+                    (user_id, guild_id),
+                ) as cur:
+                    row = await cur.fetchone()
+                if row["credits"] < cost_cc:
+                    await self._conn.execute("ROLLBACK")
+                    return False, "insufficient_funds"
+
+                await self._conn.execute(
+                    "UPDATE users SET credits=credits-? WHERE user_id=? AND guild_id=?",
+                    (cost_cc, user_id, guild_id),
+                )
+
+                async with self._conn.execute(
+                    "SELECT shares, avg_cost FROM stock_holdings "
+                    "WHERE user_id=? AND guild_id=? AND ticker=?",
+                    (user_id, guild_id, ticker),
+                ) as cur:
+                    holding = await cur.fetchone()
+
+                price_per = cost_cc / shares
+                if holding:
+                    new_shares = holding["shares"] + shares
+                    new_avg = (holding["shares"] * holding["avg_cost"] + cost_cc) / new_shares
+                    await self._conn.execute(
+                        "UPDATE stock_holdings SET shares=?, avg_cost=? "
+                        "WHERE user_id=? AND guild_id=? AND ticker=?",
+                        (new_shares, new_avg, user_id, guild_id, ticker),
+                    )
+                else:
+                    await self._conn.execute(
+                        "INSERT INTO stock_holdings (user_id, guild_id, ticker, shares, avg_cost) "
+                        "VALUES (?, ?, ?, ?, ?)",
+                        (user_id, guild_id, ticker, shares, price_per),
+                    )
+
+                await self._conn.execute("COMMIT")
+                return True, "ok"
+            except Exception:
+                await self._conn.execute("ROLLBACK")
+                raise
+
+    async def sell_stock(
+        self, user_id: int, guild_id: int, ticker: str, shares: int, proceeds_cc: int
+    ) -> tuple[bool, str]:
+        """Atomically remove shares and credit proceeds. Returns (ok, reason)."""
+        ticker = ticker.upper()
+        async with self._lock:
+            await self._conn.execute("BEGIN IMMEDIATE")
+            try:
+                async with self._conn.execute(
+                    "SELECT shares, avg_cost FROM stock_holdings "
+                    "WHERE user_id=? AND guild_id=? AND ticker=?",
+                    (user_id, guild_id, ticker),
+                ) as cur:
+                    holding = await cur.fetchone()
+
+                if not holding or holding["shares"] < shares:
+                    await self._conn.execute("ROLLBACK")
+                    return False, "insufficient_shares"
+
+                new_shares = holding["shares"] - shares
+                if new_shares == 0:
+                    await self._conn.execute(
+                        "DELETE FROM stock_holdings WHERE user_id=? AND guild_id=? AND ticker=?",
+                        (user_id, guild_id, ticker),
+                    )
+                else:
+                    await self._conn.execute(
+                        "UPDATE stock_holdings SET shares=? WHERE user_id=? AND guild_id=? AND ticker=?",
+                        (new_shares, user_id, guild_id, ticker),
+                    )
+
+                await self._conn.execute(
+                    "UPDATE users SET credits=credits+?, total_earned=total_earned+? "
+                    "WHERE user_id=? AND guild_id=?",
+                    (proceeds_cc, proceeds_cc, user_id, guild_id),
+                )
+
+                await self._conn.execute("COMMIT")
+                return True, "ok"
+            except Exception:
+                await self._conn.execute("ROLLBACK")
+                raise
+
     async def seed_shop(self, guild_id: int):
         """Seed default shop items for a guild if none exist."""
         async with self._conn.execute(

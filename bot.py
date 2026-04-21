@@ -26,6 +26,7 @@ COGS = [
     "cogs.moderation",
     "cogs.games",
     "cogs.ai_chat",
+    "cogs.market",
 ]
 
 
