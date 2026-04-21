@@ -30,6 +30,7 @@ COGS = [
     "cogs.applications",
     "cogs.tickets",
     "cogs.rules",
+    "cogs.quotes",
 ]
 
 
