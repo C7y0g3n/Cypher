@@ -1,6 +1,6 @@
 # Project CYPHER — Discord Bot
 
-A production-grade Discord bot for a private gaming community. Cyberpunk aesthetic, full economy, XP ranks, moderation, mini-games, a live stock market, AI chat, a DM-based moderator application system, a button-panel ticket system, and a confidential member report system.
+A production-grade Discord bot for a private gaming community. Cyberpunk aesthetic, full economy, XP ranks, moderation, mini-games, a live stock market, AI chat, a DM-based moderator application system, a button-panel ticket system, a confidential member report system, and a rules acceptance panel with automatic role assignment.
 
 ---
 
@@ -61,6 +61,11 @@ Enable all three in the [Discord Developer Portal](https://discord.com/developer
     /reportsetup setchannel #staff-reports
     /reportsetup panel #report-a-member
     ```
+11. Set up the rules acceptance panel:
+    ```
+    /rulessetup setrole <role>
+    /rulessetup panel #rules
+    ```
 
 ---
 
@@ -86,6 +91,16 @@ Enable all three in the [Discord Developer Portal](https://discord.com/developer
 |---|---|
 | `/delwarn <log_id>` | Delete a specific warning by log ID. |
 | `/unban <user_id> [reason]` | Unban a user by their Discord snowflake ID. |
+
+### Rules Acceptance
+| Command | Who | Description |
+|---|---|---|
+| *(button panel)* | Any member | Click **Accept Rules** to instantly receive the configured role. |
+| `/rulessetup setrole <role>` | Admin | Set the role granted when a member accepts the rules. |
+| `/rulessetup panel <channel> [title] [description]` | Admin | Post the acceptance panel. Title and description are customisable. |
+| `/rulessetup status` | Admin | Show the currently configured role and panel channel. |
+
+The panel posts a persistent embed with a green **Accept Rules** button. Clicking it assigns the configured role immediately and confirms ephemerally. Members who already have the role are told so without being re-assigned. The bot validates its own role hierarchy before posting the panel so misconfigurations are caught early.
 
 ### Tickets
 | Command | Who | Description |

@@ -29,6 +29,7 @@ COGS = [
     "cogs.market",
     "cogs.applications",
     "cogs.tickets",
+    "cogs.rules",
 ]
 
 
