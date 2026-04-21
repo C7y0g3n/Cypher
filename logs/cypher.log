@@ -1,0 +1,77 @@
+[2026-04-20 08:37:04] [WARNING] discord.client: PyNaCl is not installed, voice will NOT be supported
+[2026-04-20 08:37:04] [WARNING] discord.client: davey is not installed, voice will NOT be supported
+[2026-04-20 08:37:04] [INFO] discord.client: logging in using static token
+[2026-04-20 08:37:05] [INFO] cypher.db: Ran migration: 001_initial.sql
+[2026-04-20 08:37:05] [INFO] cypher.db: Database initialized: ./data/cypher.db
+[2026-04-20 08:37:06] [ERROR] cypher: Failed to load cogs.admin: Extension 'cogs.admin' raised an error: CommandAlreadyRegistered: Command 'admin' already registered.
+Traceback (most recent call last):
+  File "C:\Users\gyoun\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.12_qbz5n2kfra8p0\LocalCache\local-packages\Python312\site-packages\discord\ext\commands\bot.py", line 974, in _load_from_module_spec
+    await setup(self)
+  File "D:\Discord Bots\Cypher\cogs\admin.py", line 232, in setup
+    await bot.add_cog(cog)
+  File "C:\Users\gyoun\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.12_qbz5n2kfra8p0\LocalCache\local-packages\Python312\site-packages\discord\ext\commands\bot.py", line 810, in add_cog
+    cog = await cog._inject(self, override=override, guild=guild, guilds=guilds)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\gyoun\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.12_qbz5n2kfra8p0\LocalCache\local-packages\Python312\site-packages\discord\ext\commands\cog.py", line 749, in _inject
+    bot.tree.add_command(command, override=override, guild=guild, guilds=guilds)
+  File "C:\Users\gyoun\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.12_qbz5n2kfra8p0\LocalCache\local-packages\Python312\site-packages\discord\app_commands\tree.py", line 407, in add_command
+    raise CommandAlreadyRegistered(name, None)
+discord.app_commands.errors.CommandAlreadyRegistered: Command 'admin' already registered.
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "D:\Discord Bots\Cypher\bot.py", line 46, in setup_hook
+    await self.load_extension(cog)
+  File "C:\Users\gyoun\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.12_qbz5n2kfra8p0\LocalCache\local-packages\Python312\site-packages\discord\ext\commands\bot.py", line 1040, in load_extension
+    await self._load_from_module_spec(spec, name)
+  File "C:\Users\gyoun\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.12_qbz5n2kfra8p0\LocalCache\local-packages\Python312\site-packages\discord\ext\commands\bot.py", line 979, in _load_from_module_spec
+    raise errors.ExtensionFailed(key, e) from e
+discord.ext.commands.errors.ExtensionFailed: Extension 'cogs.admin' raised an error: CommandAlreadyRegistered: Command 'admin' already registered.
+[2026-04-20 08:37:06] [ERROR] cypher: Failed to load cogs.xp_ranks: Extension 'cogs.xp_ranks' raised an error: CommandAlreadyRegistered: Command 'xp' already registered.
+Traceback (most recent call last):
+  File "C:\Users\gyoun\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.12_qbz5n2kfra8p0\LocalCache\local-packages\Python312\site-packages\discord\ext\commands\bot.py", line 974, in _load_from_module_spec
+    await setup(self)
+  File "D:\Discord Bots\Cypher\cogs\xp_ranks.py", line 400, in setup
+    await bot.add_cog(cog)
+  File "C:\Users\gyoun\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.12_qbz5n2kfra8p0\LocalCache\local-packages\Python312\site-packages\discord\ext\commands\bot.py", line 810, in add_cog
+    cog = await cog._inject(self, override=override, guild=guild, guilds=guilds)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\gyoun\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.12_qbz5n2kfra8p0\LocalCache\local-packages\Python312\site-packages\discord\ext\commands\cog.py", line 749, in _inject
+    bot.tree.add_command(command, override=override, guild=guild, guilds=guilds)
+  File "C:\Users\gyoun\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.12_qbz5n2kfra8p0\LocalCache\local-packages\Python312\site-packages\discord\app_commands\tree.py", line 407, in add_command
+    raise CommandAlreadyRegistered(name, None)
+discord.app_commands.errors.CommandAlreadyRegistered: Command 'xp' already registered.
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "D:\Discord Bots\Cypher\bot.py", line 46, in setup_hook
+    await self.load_extension(cog)
+  File "C:\Users\gyoun\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.12_qbz5n2kfra8p0\LocalCache\local-packages\Python312\site-packages\discord\ext\commands\bot.py", line 1040, in load_extension
+    await self._load_from_module_spec(spec, name)
+  File "C:\Users\gyoun\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.12_qbz5n2kfra8p0\LocalCache\local-packages\Python312\site-packages\discord\ext\commands\bot.py", line 979, in _load_from_module_spec
+    raise errors.ExtensionFailed(key, e) from e
+discord.ext.commands.errors.ExtensionFailed: Extension 'cogs.xp_ranks' raised an error: CommandAlreadyRegistered: Command 'xp' already registered.
+[2026-04-20 08:37:06] [INFO] cypher: Loaded cog: cogs.economy
+[2026-04-20 08:37:06] [INFO] cypher: Loaded cog: cogs.moderation
+[2026-04-20 08:37:06] [INFO] cypher: Loaded cog: cogs.games
+[2026-04-20 08:37:07] [INFO] cypher: Commands synced to guild 1495610528528072995
+[2026-04-20 08:37:07] [INFO] discord.gateway: Shard ID None has connected to Gateway (Session ID: 52f23537bb249c6e7daab2a2e4a3e835).
+[2026-04-20 08:37:09] [INFO] cypher: Online as Cypher#7153 (1495802816416055397)
+[2026-04-20 08:37:09] [INFO] cypher.db: Seeded default shop items for guild 1495610528528072995
+[2026-04-20 08:37:09] [INFO] cypher: Guild defaults seeded for 1495610528528072995
+[2026-04-20 08:44:05] [WARNING] discord.client: PyNaCl is not installed, voice will NOT be supported
+[2026-04-20 08:44:05] [WARNING] discord.client: davey is not installed, voice will NOT be supported
+[2026-04-20 08:44:05] [INFO] discord.client: logging in using static token
+[2026-04-20 08:44:06] [INFO] cypher.db: Ran migration: 001_initial.sql
+[2026-04-20 08:44:06] [INFO] cypher.db: Database initialized: ./data/cypher.db
+[2026-04-20 08:44:06] [INFO] cypher: Loaded cog: cogs.admin
+[2026-04-20 08:44:06] [INFO] cypher: Loaded cog: cogs.xp_ranks
+[2026-04-20 08:44:06] [INFO] cypher: Loaded cog: cogs.economy
+[2026-04-20 08:44:06] [INFO] cypher: Loaded cog: cogs.moderation
+[2026-04-20 08:44:06] [INFO] cypher: Loaded cog: cogs.games
+[2026-04-20 08:44:06] [INFO] cypher: Commands synced to guild 1495610528528072995
+[2026-04-20 08:44:07] [INFO] discord.gateway: Shard ID None has connected to Gateway (Session ID: b152e1c171a433ef643cc0bf9cdb553c).
+[2026-04-20 08:44:09] [INFO] cypher: Online as Cypher#7153 (1495802816416055397)
+[2026-04-20 08:44:09] [INFO] cypher: Guild defaults seeded for 1495610528528072995

@@ -1,0 +1,12 @@
+# Discord
+discord.py>=2.3.2
+python-dotenv>=1.0.0
+aiohttp>=3.9.0
+
+# Database & image
+aiosqlite>=0.19.0
+Pillow>=10.0.0
+
+# SLM inference — install manually ONLY when model weights are present on the server.
+# These are large (~2GB total) and not needed until ./slm-legal-370m/ exists.
+# pip install torch>=2.3.0 transformers>=4.40.0 accelerate>=0.29.0 bitsandbytes>=0.43.0
