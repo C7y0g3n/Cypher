@@ -31,8 +31,8 @@ RANK_THRESHOLDS: dict[int, tuple[str, int]] = {
     6: ("The Overclocked", 35000),
 }
 
-HF_API_TOKEN: str = os.getenv("HF_API_TOKEN", "")
-HF_MODEL_ID: str = os.getenv("HF_MODEL_ID", "HuggingFaceH4/zephyr-7b-beta")
+GEMINI_API_KEY: str = os.getenv("GEMINI_API_KEY", "")
+GEMINI_MODEL: str = os.getenv("GEMINI_MODEL", "gemini-1.5-flash")
 
 CONFIG_DEFAULTS: dict[str, str] = {
     "log_channel_id": str(LOG_CHANNEL_ID) if LOG_CHANNEL_ID else "",

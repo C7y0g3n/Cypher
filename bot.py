@@ -44,9 +44,9 @@ class CypherBot(commands.Bot):
         self.db = Database(config.DB_PATH)
         await self.db.init()
 
-        self.slm_engine = load_engine(config.HF_API_TOKEN, config.HF_MODEL_ID)
+        self.slm_engine = load_engine(config.GEMINI_API_KEY, config.GEMINI_MODEL)
         if not self.slm_engine:
-            log.warning("SLM engine not loaded — set HF_API_TOKEN and HF_MODEL_ID in .env to enable /summarize")
+            log.warning("AI engine not loaded — set GEMINI_API_KEY in .env to enable /ask")
 
         for cog in COGS:
             try:

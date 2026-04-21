@@ -22,12 +22,7 @@ class AIChatCog(commands.Cog, name="AI"):
         return getattr(self.bot, "slm_engine", None)
 
     def _build_prompt(self, message: str) -> str:
-        return (
-            "<|system|>\nYou are Cypher, a helpful and friendly AI assistant living inside a Discord server. "
-            "Respond conversationally and concisely.</s>\n"
-            f"<|user|>\n{message}</s>\n"
-            "<|assistant|>\n"
-        )
+        return message
 
     @app_commands.command(name="ask", description="Chat with Cypher AI.")
     @app_commands.describe(message="What do you want to ask or talk about?")
@@ -101,7 +96,7 @@ class AIChatCog(commands.Cog, name="AI"):
                 title="AI Status",
                 color=0x059669,
                 fields=[
-                    ("Backend", "`HuggingFace Inference API`", False),
+                    ("Backend", "`Google Gemini API`", False),
                     ("Model", f"`{engine.model_id}`", False),
                 ],
             )
