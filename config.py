@@ -32,7 +32,7 @@ RANK_THRESHOLDS: dict[int, tuple[str, int]] = {
 }
 
 GEMINI_API_KEY: str = os.getenv("GEMINI_API_KEY", "")
-GEMINI_MODEL: str = os.getenv("GEMINI_MODEL", "gemini-1.5-flash")
+GEMINI_MODEL: str = os.getenv("GEMINI_MODEL", "gemini-2.0-flash-lite")
 
 CONFIG_DEFAULTS: dict[str, str] = {
     "log_channel_id": str(LOG_CHANNEL_ID) if LOG_CHANNEL_ID else "",
