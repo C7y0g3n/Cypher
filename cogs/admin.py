@@ -1,4 +1,6 @@
 import logging
+import os
+from pathlib import Path
 
 import discord
 from discord import app_commands
@@ -158,6 +160,117 @@ class Admin(commands.Cog):
         if result["leveled_up"]:
             await self._handle_level_up(user, result["level"], interaction.guild)
 
+    @admin_group.command(name="giveall", description="Give credits to every registered user in the server")
+    @is_admin()
+    @app_commands.describe(
+        amount="Amount of CC to give every user",
+        confirm="Must be True to execute — this affects all users",
+    )
+    async def admin_giveall(
+        self, interaction: discord.Interaction, amount: int, confirm: bool = False
+    ):
+        await interaction.response.defer(ephemeral=True)
+        if amount <= 0:
+            await interaction.followup.send(
+                embed=error_embed("Amount must be positive."), ephemeral=True
+            )
+            return
+        if not confirm:
+            await interaction.followup.send(
+                embed=info_embed(
+                    f"This will give **{amount:,} CC** to every registered user in the server.\n"
+                    "Run the command again with `confirm: True` to proceed.",
+                    title="Confirm Action",
+                ),
+                ephemeral=True,
+            )
+            return
+        count = await self.db.give_all_credits(interaction.guild_id, amount)
+        log.info(f"Admin giveall: {amount} CC to {count} users by {interaction.user}")
+        await interaction.followup.send(
+            embed=success_embed(
+                f"Gave **{amount:,} CC** to **{count}** registered users.",
+                title="Credits Distributed",
+            ),
+        )
+
+    @admin_group.command(name="giveinvestment", description="Grant a user stock shares at no CC cost")
+    @is_admin()
+    @app_commands.describe(
+        user="Target user",
+        ticker="Stock ticker symbol (e.g. CYPH)",
+        shares="Number of shares to grant",
+    )
+    async def admin_giveinvestment(
+        self,
+        interaction: discord.Interaction,
+        user: discord.Member,
+        ticker: str,
+        shares: int,
+    ):
+        await interaction.response.defer(ephemeral=True)
+        if shares <= 0:
+            await interaction.followup.send(
+                embed=error_embed("Shares must be positive."), ephemeral=True
+            )
+            return
+        ok, reason = await self.db.admin_give_stock(user.id, interaction.guild_id, ticker, shares)
+        if not ok:
+            await interaction.followup.send(
+                embed=error_embed(
+                    f"Unknown ticker `{ticker.upper()}`. Use `/market` to see valid tickers."
+                ),
+                ephemeral=True,
+            )
+            return
+        stock = await self.db.get_stock(interaction.guild_id, ticker)
+        value = shares * stock["price"]
+        log.info(
+            f"Admin giveinvestment: {shares}x {ticker.upper()} to {user} by {interaction.user}"
+        )
+        await interaction.followup.send(
+            embed=success_embed(
+                f"Granted **{shares:,}× {ticker.upper()}** to {user.mention}\n"
+                f"Market value: **{value:,} CC** at `{stock['price']:,} CC/share`",
+                title="Investment Granted",
+            ),
+        )
+
+    @admin_group.command(name="backupdb", description="Create a timestamped backup of the database")
+    @is_admin()
+    async def admin_backupdb(self, interaction: discord.Interaction):
+        await interaction.response.defer(ephemeral=True)
+        try:
+            backup_dir = str(Path(self.bot.db.db_path).parent / "backups")
+            backup_path = await self.db.backup_database(backup_dir)
+            file_size = os.path.getsize(backup_path)
+            size_kb = file_size / 1024
+            log.info(f"DB backup: {backup_path} ({size_kb:.1f} KB) by {interaction.user}")
+            embed = success_embed(
+                f"Saved to `{Path(backup_path).name}`\nSize: **{size_kb:.1f} KB**",
+                title="Database Backed Up",
+            )
+            if file_size <= 8 * 1024 * 1024:
+                await interaction.followup.send(
+                    embed=embed,
+                    file=discord.File(backup_path, filename=Path(backup_path).name),
+                    ephemeral=True,
+                )
+            else:
+                await interaction.followup.send(
+                    embed=success_embed(
+                        f"Saved to `{backup_path}`\nSize: **{size_kb / 1024:.2f} MB** "
+                        "(too large to attach — retrieve from server).",
+                        title="Database Backed Up",
+                    ),
+                    ephemeral=True,
+                )
+        except Exception as e:
+            log.error(f"Backup failed: {e}", exc_info=True)
+            await interaction.followup.send(
+                embed=error_embed(f"Backup failed:\n```{e}```"), ephemeral=True
+            )
+
     async def _handle_level_up(self, member: discord.Member, new_level: int, guild: discord.Guild):
         from config import RANK_THRESHOLDS
         rank_name, _ = RANK_THRESHOLDS[new_level]
@@ -179,7 +292,7 @@ class Admin(commands.Cog):
     @commands.group(name="admin", invoke_without_command=True)
     @prefix_is_admin()
     async def prefix_admin(self, ctx: commands.Context):
-        await ctx.send(embed=info_embed("Use `/admin <subcommand>`. Available: reload, setconfig, additem, removeitem, eventbonus, grantxp"))
+        await ctx.send(embed=info_embed("Use `/admin <subcommand>`. Available: reload, setconfig, additem, removeitem, eventbonus, grantxp, giveall, giveinvestment, backupdb"))
 
     @prefix_admin.command(name="reload")
     @prefix_is_admin()

@@ -633,6 +633,80 @@ class Database:
                 await self._conn.execute("ROLLBACK")
                 raise
 
+    async def give_all_credits(self, guild_id: int, amount: int) -> int:
+        """Give credits to every user in a guild. Returns number of users affected."""
+        async with self._lock:
+            await self._conn.execute("BEGIN IMMEDIATE")
+            try:
+                earned_delta = max(0, amount)
+                cur = await self._conn.execute(
+                    "UPDATE users SET credits=MAX(0, credits+?), total_earned=total_earned+? "
+                    "WHERE guild_id=?",
+                    (amount, earned_delta, guild_id),
+                )
+                await self._conn.execute("COMMIT")
+                return cur.rowcount
+            except Exception:
+                await self._conn.execute("ROLLBACK")
+                raise
+
+    async def admin_give_stock(
+        self, user_id: int, guild_id: int, ticker: str, shares: int
+    ) -> tuple[bool, str]:
+        """Grant shares to a user without deducting credits. Returns (ok, reason)."""
+        await self.ensure_user(user_id, guild_id)
+        ticker = ticker.upper()
+        async with self._lock:
+            await self._conn.execute("BEGIN IMMEDIATE")
+            try:
+                async with self._conn.execute(
+                    "SELECT price FROM stocks WHERE guild_id=? AND ticker=?",
+                    (guild_id, ticker),
+                ) as cur:
+                    stock = await cur.fetchone()
+                if not stock:
+                    await self._conn.execute("ROLLBACK")
+                    return False, "unknown_ticker"
+
+                current_price = stock["price"]
+                async with self._conn.execute(
+                    "SELECT shares, avg_cost FROM stock_holdings "
+                    "WHERE user_id=? AND guild_id=? AND ticker=?",
+                    (user_id, guild_id, ticker),
+                ) as cur:
+                    holding = await cur.fetchone()
+
+                if holding:
+                    new_shares = holding["shares"] + shares
+                    new_avg = (
+                        holding["shares"] * holding["avg_cost"] + shares * current_price
+                    ) / new_shares
+                    await self._conn.execute(
+                        "UPDATE stock_holdings SET shares=?, avg_cost=? "
+                        "WHERE user_id=? AND guild_id=? AND ticker=?",
+                        (new_shares, new_avg, user_id, guild_id, ticker),
+                    )
+                else:
+                    await self._conn.execute(
+                        "INSERT INTO stock_holdings (user_id, guild_id, ticker, shares, avg_cost) "
+                        "VALUES (?, ?, ?, ?, ?)",
+                        (user_id, guild_id, ticker, shares, current_price),
+                    )
+
+                await self._conn.execute("COMMIT")
+                return True, "ok"
+            except Exception:
+                await self._conn.execute("ROLLBACK")
+                raise
+
+    async def backup_database(self, backup_dir: str) -> str:
+        """Create a clean timestamped backup via VACUUM INTO. Returns the backup file path."""
+        ts = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+        backup_path = Path(backup_dir) / f"cypher_backup_{ts}.db"
+        backup_path.parent.mkdir(parents=True, exist_ok=True)
+        await self._conn.execute(f"VACUUM INTO '{backup_path}'")
+        return str(backup_path)
+
     async def seed_shop(self, guild_id: int):
         """Seed default shop items for a guild if none exist."""
         async with self._conn.execute(
