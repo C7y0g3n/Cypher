@@ -1,4 +1,5 @@
 import asyncio
+import json
 import logging
 from datetime import datetime, timezone
 from pathlib import Path
@@ -727,6 +728,30 @@ class Database:
             await self.add_shop_item(guild_id, name, itype, cost, role_id, duration_days, stock)
         log.info(f"Seeded default shop items for guild {guild_id}")
 
+
+    # ─── Server Snapshots ─────────────────────────────────────────────────────
+
+    async def save_server_snapshot(self, guild_id: int, label: str, data: dict) -> int:
+        cur = await self._conn.execute(
+            "INSERT INTO server_snapshots (guild_id, label, created_at, data) VALUES (?, ?, ?, ?)",
+            (guild_id, label, _now(), json.dumps(data)),
+        )
+        return cur.lastrowid
+
+    async def get_server_snapshots(self, guild_id: int):
+        async with self._conn.execute(
+            "SELECT snapshot_id, label, created_at FROM server_snapshots "
+            "WHERE guild_id=? ORDER BY created_at DESC",
+            (guild_id,),
+        ) as cur:
+            return await cur.fetchall()
+
+    async def get_server_snapshot(self, snapshot_id: int, guild_id: int) -> Optional[aiosqlite.Row]:
+        async with self._conn.execute(
+            "SELECT * FROM server_snapshots WHERE snapshot_id=? AND guild_id=?",
+            (snapshot_id, guild_id),
+        ) as cur:
+            return await cur.fetchone()
 
     # ─── Tickets ──────────────────────────────────────────────────────────────
 

@@ -196,6 +196,12 @@ Prices update automatically every 30 minutes using a mean-reverting random walk.
 | `/admin removeitem <item_id>` | Soft-delete a shop item (purchase history preserved). |
 | `/admin eventbonus <on\|off>` | Toggle 2× XP and CC earn event for the server. |
 | `/admin grantxp <user> <amount>` | Grant XP to a user with audit log entry. |
+| `/admin giveall <amount> [confirm]` | Give CC to every registered user. Requires `confirm: True` to execute. |
+| `/admin giveinvestment <user> <ticker> <shares>` | Grant stock shares to a user at no CC cost. Uses current market price as cost basis. |
+| `/admin backupdb` | Create a timestamped database backup. Attaches the file directly in Discord if under 8 MB. |
+| `/admin serversave [label]` | Snapshot all server roles, channels, categories, and permission overwrites to the database. |
+| `/admin serverbackups` | List all saved server snapshots with their ID, label, and creation timestamp. |
+| `/admin serverrestore <snapshot_id> [confirm]` | Full wipe-and-restore: deletes all existing channels and non-bot roles, then recreates everything from the snapshot. Requires `confirm: True`. Sends a completion report via DM when done. |
 
 ---
 
@@ -230,7 +236,10 @@ docker compose logs -f
 docker compose down
 ```
 
-### Daily backup
+### Backups
+Use `/admin backupdb` from Discord to create a timestamped backup on demand — the file is attached directly in the response. Backups are also written to `data/backups/` on the host.
+
+For scheduled server-side backups:
 ```bash
 sqlite3 ./data/cypher.db .dump > backup/cypher_$(date +%Y%m%d).sql
 ```

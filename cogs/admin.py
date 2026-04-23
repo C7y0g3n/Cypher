@@ -1,5 +1,7 @@
+import json
 import logging
 import os
+from datetime import datetime
 from pathlib import Path
 
 import discord
@@ -271,6 +273,328 @@ class Admin(commands.Cog):
                 embed=error_embed(f"Backup failed:\n```{e}```"), ephemeral=True
             )
 
+    @admin_group.command(name="serversave", description="Snapshot server roles, channels, and permissions to the database")
+    @is_admin()
+    @app_commands.describe(label="Optional label for this snapshot (e.g. 'pre-reorg')")
+    async def admin_serversave(self, interaction: discord.Interaction, label: str = "snapshot"):
+        await interaction.response.defer(ephemeral=True)
+        data = self._capture_guild(interaction.guild)
+        snapshot_id = await self.db.save_server_snapshot(interaction.guild_id, label, data)
+        role_count = len(data["roles"])
+        cat_count = len(data["categories"])
+        ch_count = len(data["channels"])
+        log.info(
+            f"Server snapshot #{snapshot_id} '{label}' by {interaction.user} "
+            f"({role_count} roles, {cat_count} cats, {ch_count} channels)"
+        )
+        await interaction.followup.send(
+            embed=success_embed(
+                f"**Snapshot #{snapshot_id}** — `{label}`\n"
+                f"Captured: **{role_count}** roles · **{cat_count}** categories · **{ch_count}** channels",
+                title="Server Snapshot Saved",
+            ),
+            ephemeral=True,
+        )
+
+    @admin_group.command(name="serverbackups", description="List saved server snapshots")
+    @is_admin()
+    async def admin_serverbackups(self, interaction: discord.Interaction):
+        await interaction.response.defer(ephemeral=True)
+        rows = await self.db.get_server_snapshots(interaction.guild_id)
+        if not rows:
+            await interaction.followup.send(
+                embed=info_embed("No snapshots yet. Use `/admin serversave` to create one."),
+                ephemeral=True,
+            )
+            return
+        lines = [
+            f"**#{r['snapshot_id']}** — `{r['label']}` — "
+            f"<t:{int(datetime.fromisoformat(r['created_at']).timestamp())}:f>"
+            for r in rows
+        ]
+        await interaction.followup.send(
+            embed=info_embed("\n".join(lines), title=f"Server Snapshots ({len(rows)})"),
+            ephemeral=True,
+        )
+
+    @admin_group.command(name="serverrestore", description="Wipe all channels/roles and rebuild from a saved snapshot")
+    @is_admin()
+    @app_commands.describe(
+        snapshot_id="Snapshot ID from /admin serverbackups",
+        confirm="Must be True to execute — deletes ALL existing channels and roles first",
+    )
+    async def admin_serverrestore(
+        self, interaction: discord.Interaction, snapshot_id: int, confirm: bool = False
+    ):
+        await interaction.response.defer(ephemeral=True)
+        row = await self.db.get_server_snapshot(snapshot_id, interaction.guild_id)
+        if not row:
+            await interaction.followup.send(
+                embed=error_embed(f"Snapshot `#{snapshot_id}` not found."), ephemeral=True
+            )
+            return
+
+        data = json.loads(row["data"])
+        role_count = len([r for r in data["roles"] if not r["managed"]])
+        cat_count = len(data["categories"])
+        ch_count = len(data["channels"])
+
+        if not confirm:
+            await interaction.followup.send(
+                embed=info_embed(
+                    f"**Snapshot #{snapshot_id}** — `{row['label']}`\n"
+                    f"Will restore: **{role_count}** roles · **{cat_count}** categories · **{ch_count}** channels\n\n"
+                    "Every existing channel and non-bot role will be deleted first.\n"
+                    "The completion report will be sent to your DMs.\n"
+                    "Run again with `confirm: True` to proceed.",
+                    title="Confirm Full Restore",
+                ),
+                ephemeral=True,
+            )
+            return
+
+        await interaction.followup.send(
+            embed=info_embed(
+                "Wiping existing server structure and rebuilding from snapshot. "
+                "The completion report will arrive in your DMs.",
+                title="Restore In Progress",
+            ),
+            ephemeral=True,
+        )
+
+        stats = await self._restore_guild(interaction.guild, data)
+        log.info(f"Full server restore #{snapshot_id} by {interaction.user}: {stats}")
+
+        error_text = ""
+        if stats["errors"]:
+            shown = stats["errors"][:10]
+            error_text = f"\n\n**{len(stats['errors'])} error(s):**\n" + "\n".join(f"• {e}" for e in shown)
+            if len(stats["errors"]) > 10:
+                error_text += f"\n*...and {len(stats['errors']) - 10} more*"
+
+        result_embed = success_embed(
+            f"Restored from snapshot **#{snapshot_id}** (`{row['label']}`)\n"
+            f"Deleted: **{stats['deleted_channels']}** channels · **{stats['deleted_roles']}** roles\n"
+            f"Created: **{stats['roles']}** roles · **{stats['categories']}** categories · **{stats['channels']}** channels"
+            + error_text,
+            title="Server Restore Complete",
+        )
+
+        # Original channel is gone — DM the report, fall back to first accessible text channel
+        try:
+            await interaction.user.send(embed=result_embed)
+        except discord.Forbidden:
+            for ch in interaction.guild.text_channels:
+                try:
+                    await ch.send(interaction.user.mention, embed=result_embed)
+                    break
+                except Exception:
+                    continue
+
+    # ─── Server snapshot helpers ──────────────────────────────────────────────
+
+    @staticmethod
+    def _capture_guild(guild: discord.Guild) -> dict:
+        def serialize_overwrites(ch) -> list:
+            out = []
+            for target, ow in ch.overwrites.items():
+                allow, deny = ow.pair()
+                out.append({
+                    "target_id": target.id,
+                    "target_type": "role" if isinstance(target, discord.Role) else "member",
+                    "allow": allow.value,
+                    "deny": deny.value,
+                })
+            return out
+
+        roles = sorted(
+            [
+                {
+                    "id": r.id,
+                    "name": r.name,
+                    "color": r.color.value,
+                    "permissions": r.permissions.value,
+                    "position": r.position,
+                    "hoist": r.hoist,
+                    "mentionable": r.mentionable,
+                    "managed": r.managed,
+                }
+                for r in guild.roles
+                if not r.is_default()
+            ],
+            key=lambda r: r["position"],
+        )
+
+        categories = [
+            {
+                "id": c.id,
+                "name": c.name,
+                "position": c.position,
+                "overwrites": serialize_overwrites(c),
+            }
+            for c in sorted(guild.categories, key=lambda c: c.position)
+        ]
+
+        channels = []
+        for ch in sorted(guild.channels, key=lambda c: c.position):
+            if isinstance(ch, discord.CategoryChannel):
+                continue
+            entry = {
+                "id": ch.id,
+                "name": ch.name,
+                "category_id": ch.category_id,
+                "position": ch.position,
+                "overwrites": serialize_overwrites(ch),
+            }
+            if isinstance(ch, discord.TextChannel):
+                entry.update({
+                    "kind": "text",
+                    "topic": ch.topic,
+                    "nsfw": ch.nsfw,
+                    "slowmode_delay": ch.slowmode_delay,
+                })
+            elif isinstance(ch, discord.VoiceChannel):
+                entry.update({"kind": "voice", "bitrate": ch.bitrate, "user_limit": ch.user_limit})
+            elif isinstance(ch, discord.StageChannel):
+                entry["kind"] = "stage"
+            else:
+                entry["kind"] = "text"
+            channels.append(entry)
+
+        return {
+            "guild": {
+                "name": guild.name,
+                "description": guild.description,
+                "verification_level": guild.verification_level.value,
+                "everyone_role_id": guild.default_role.id,
+            },
+            "roles": roles,
+            "categories": categories,
+            "channels": channels,
+        }
+
+    async def _restore_guild(self, guild: discord.Guild, data: dict) -> dict:
+        everyone_old_id = data["guild"].get("everyone_role_id")
+        role_id_map: dict[int, discord.Role] = {}
+        if everyone_old_id:
+            role_id_map[everyone_old_id] = guild.default_role
+
+        stats: dict = {
+            "deleted_channels": 0, "deleted_roles": 0,
+            "roles": 0, "categories": 0, "channels": 0,
+            "errors": [],
+        }
+
+        # ── Wipe phase ────────────────────────────────────────────────────────
+        # Child channels first — categories must be empty before deletion
+        for ch in list(guild.channels):
+            if isinstance(ch, discord.CategoryChannel):
+                continue
+            try:
+                await ch.delete(reason="Server snapshot restore")
+                stats["deleted_channels"] += 1
+            except Exception as e:
+                stats["errors"].append(f"delete channel '{ch.name}': {e}")
+
+        for cat in list(guild.categories):
+            try:
+                await cat.delete(reason="Server snapshot restore")
+                stats["deleted_channels"] += 1
+            except Exception as e:
+                stats["errors"].append(f"delete category '{cat.name}': {e}")
+
+        # Delete roles lowest-position first; skip @everyone and managed (bot) roles
+        for r in sorted(guild.roles, key=lambda r: r.position):
+            if r.is_default() or r.managed:
+                continue
+            try:
+                await r.delete(reason="Server snapshot restore")
+                stats["deleted_roles"] += 1
+            except Exception as e:
+                stats["errors"].append(f"delete role '{r.name}': {e}")
+
+        # ── Create phase ──────────────────────────────────────────────────────
+        for r in data["roles"]:
+            if r["managed"]:
+                continue
+            try:
+                new_role = await guild.create_role(
+                    name=r["name"],
+                    color=discord.Color(r["color"]),
+                    permissions=discord.Permissions(r["permissions"]),
+                    hoist=r["hoist"],
+                    mentionable=r["mentionable"],
+                    reason="Server snapshot restore",
+                )
+                role_id_map[r["id"]] = new_role
+                stats["roles"] += 1
+            except Exception as e:
+                stats["errors"].append(f"role '{r['name']}': {e}")
+
+        def map_overwrites(ow_list: list) -> dict:
+            result: dict = {}
+            for ow in ow_list:
+                if ow["target_type"] != "role":
+                    continue
+                role = role_id_map.get(ow["target_id"])
+                if role is None:
+                    continue
+                result[role] = discord.PermissionOverwrite.from_pair(
+                    discord.Permissions(ow["allow"]),
+                    discord.Permissions(ow["deny"]),
+                )
+            return result
+
+        cat_id_map: dict[int, discord.CategoryChannel] = {}
+        for c in data["categories"]:
+            try:
+                new_cat = await guild.create_category(
+                    name=c["name"],
+                    overwrites=map_overwrites(c["overwrites"]),
+                    reason="Server snapshot restore",
+                )
+                cat_id_map[c["id"]] = new_cat
+                stats["categories"] += 1
+            except Exception as e:
+                stats["errors"].append(f"category '{c['name']}': {e}")
+
+        for ch in data["channels"]:
+            try:
+                category = cat_id_map.get(ch["category_id"]) if ch["category_id"] else None
+                ow = map_overwrites(ch["overwrites"])
+                kind = ch.get("kind", "text")
+                if kind == "voice":
+                    await guild.create_voice_channel(
+                        name=ch["name"],
+                        overwrites=ow,
+                        category=category,
+                        bitrate=min(ch.get("bitrate", 64000), 64000),
+                        user_limit=ch.get("user_limit", 0),
+                        reason="Server snapshot restore",
+                    )
+                elif kind == "stage":
+                    await guild.create_stage_channel(
+                        name=ch["name"],
+                        overwrites=ow,
+                        category=category,
+                        reason="Server snapshot restore",
+                    )
+                else:
+                    await guild.create_text_channel(
+                        name=ch["name"],
+                        overwrites=ow,
+                        category=category,
+                        topic=ch.get("topic"),
+                        nsfw=ch.get("nsfw", False),
+                        slowmode_delay=ch.get("slowmode_delay", 0),
+                        reason="Server snapshot restore",
+                    )
+                stats["channels"] += 1
+            except Exception as e:
+                stats["errors"].append(f"channel '{ch['name']}': {e}")
+
+        return stats
+
     async def _handle_level_up(self, member: discord.Member, new_level: int, guild: discord.Guild):
         from config import RANK_THRESHOLDS
         rank_name, _ = RANK_THRESHOLDS[new_level]
@@ -292,7 +616,7 @@ class Admin(commands.Cog):
     @commands.group(name="admin", invoke_without_command=True)
     @prefix_is_admin()
     async def prefix_admin(self, ctx: commands.Context):
-        await ctx.send(embed=info_embed("Use `/admin <subcommand>`. Available: reload, setconfig, additem, removeitem, eventbonus, grantxp, giveall, giveinvestment, backupdb"))
+        await ctx.send(embed=info_embed("Use `/admin <subcommand>`. Available: reload, setconfig, additem, removeitem, eventbonus, grantxp, giveall, giveinvestment, backupdb, serversave, serverbackups, serverrestore"))
 
     @prefix_admin.command(name="reload")
     @prefix_is_admin()
