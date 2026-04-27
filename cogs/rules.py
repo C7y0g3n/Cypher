@@ -48,7 +48,12 @@ class Rules(commands.Cog):
     # ─── Accept handler ───────────────────────────────────────────────────────
 
     async def handle_accept(self, interaction: discord.Interaction):
-        await interaction.response.defer(ephemeral=True)
+        try:
+            await interaction.response.defer(ephemeral=True, thinking=True)
+        except discord.NotFound:
+            log.warning(f"Interaction expired in Rules button for {interaction.user}")
+            return
+
         role_id = await self.db.get_config(interaction.guild_id, "rules_role_id")
         if not role_id:
             await interaction.followup.send(
