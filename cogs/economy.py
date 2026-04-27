@@ -112,6 +112,7 @@ class Economy(commands.Cog):
 
     @app_commands.command(name="daily", description="Claim your daily Cypher Credits")
     async def daily(self, interaction: discord.Interaction):
+        await interaction.response.defer()
         await self.db.ensure_user(interaction.user.id, interaction.guild_id)
         row = await self.db.get_user(interaction.user.id, interaction.guild_id)
         now = datetime.now(timezone.utc)
@@ -125,7 +126,7 @@ class Economy(commands.Cog):
                 remaining = timedelta(seconds=86400 - diff)
                 h, rem = divmod(int(remaining.total_seconds()), 3600)
                 m = rem // 60
-                await interaction.response.send_message(
+                await interaction.followup.send(
                     embed=warning_embed(
                         f"You already claimed today. Come back in **{h}h {m}m**.",
                         title="Daily Cooldown",
@@ -166,7 +167,7 @@ class Economy(commands.Cog):
             f"Balance: **{new_balance:,} CC**",
         ] + extra_lines
 
-        await interaction.response.send_message(
+        await interaction.followup.send(
             embed=success_embed("\n".join(desc_lines), title="Daily Reward Claimed")
         )
 
@@ -520,14 +521,18 @@ class Economy(commands.Cog):
 
     async def cog_app_command_error(self, interaction: discord.Interaction, error: app_commands.AppCommandError):
         if isinstance(error, app_commands.CheckFailure):
-            if not interaction.response.is_done():
-                await interaction.response.send_message(
-                    embed=error_embed("You don't have permission to use this command."), ephemeral=True
-                )
+            msg = error_embed("You don't have permission to use this command.")
         else:
             log.error(f"Economy command error: {error}", exc_info=True)
-            if not interaction.response.is_done():
-                await interaction.response.send_message(embed=error_embed("An unexpected error occurred."), ephemeral=True)
+            msg = error_embed("An unexpected error occurred.")
+
+        try:
+            if interaction.response.is_done():
+                await interaction.followup.send(embed=msg, ephemeral=True)
+            else:
+                await interaction.response.send_message(embed=msg, ephemeral=True)
+        except discord.NotFound:
+            pass
 
 
 class _ShopView(discord.ui.View):
