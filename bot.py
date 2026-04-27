@@ -62,7 +62,6 @@ class CypherBot(commands.Bot):
                 log.error(f"Failed to load {cog}: {e}", exc_info=True)
 
         guild = discord.Object(id=config.GUILD_ID)
-        self.tree.copy_global_to(guild=guild)
         await self.tree.sync(guild=guild)
         log.info(f"Commands synced to guild {config.GUILD_ID}")
 
