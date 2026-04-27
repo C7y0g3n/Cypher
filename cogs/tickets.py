@@ -84,11 +84,12 @@ class Tickets(commands.Cog):
     # ─── Ticket: open ─────────────────────────────────────────────────────────
 
     async def handle_open_ticket(self, interaction: discord.Interaction):
+        await interaction.response.defer(ephemeral=True)
         existing = await self.db.get_open_ticket_by_user(interaction.guild_id, interaction.user.id)
         if existing:
             ch = interaction.guild.get_channel(existing["channel_id"])
             if ch:
-                await interaction.response.send_message(
+                await interaction.followup.send(
                     embed=warning_embed(
                         f"You already have an open ticket: {ch.mention}\n"
                         "Please continue there or close it first.",
@@ -133,7 +134,7 @@ class Tickets(commands.Cog):
                 reason=f"Ticket #{num:04d} opened by {interaction.user}",
             )
         except discord.Forbidden:
-            await interaction.response.send_message(
+            await interaction.followup.send(
                 embed=error_embed("I don't have permission to create channels. Contact an admin."),
                 ephemeral=True,
             )
@@ -158,7 +159,7 @@ class Tickets(commands.Cog):
             view=TicketControlView(self),
         )
 
-        await interaction.response.send_message(
+        await interaction.followup.send(
             embed=success_embed(f"Your ticket has been created: {channel.mention}", title="Ticket Opened"),
             ephemeral=True,
         )
@@ -167,9 +168,10 @@ class Tickets(commands.Cog):
     # ─── Ticket: close ────────────────────────────────────────────────────────
 
     async def handle_close_ticket(self, interaction: discord.Interaction):
+        await interaction.response.defer()
         ticket = await self.db.get_ticket_by_channel(interaction.channel_id)
         if not ticket or ticket["closed_at"] is not None:
-            await interaction.response.send_message(
+            await interaction.followup.send(
                 embed=error_embed("This channel is not an active ticket."), ephemeral=True
             )
             return
@@ -189,7 +191,7 @@ class Tickets(commands.Cog):
                         break
 
         if not is_owner and not has_staff:
-            await interaction.response.send_message(
+            await interaction.followup.send(
                 embed=error_embed("Only the ticket owner or staff can close this ticket."),
                 ephemeral=True,
             )
@@ -200,7 +202,7 @@ class Tickets(commands.Cog):
             description=f"Closed by {interaction.user.mention}. This channel will be deleted in 5 seconds.",
             color=0xD97706,
         )
-        await interaction.response.send_message(embed=embed)
+        await interaction.followup.send(embed=embed)
 
         log_ch_id = await self.db.get_config(interaction.guild_id, "ticket_log_channel_id")
         if log_ch_id:
@@ -231,8 +233,9 @@ class Tickets(commands.Cog):
     # ─── Report: open ─────────────────────────────────────────────────────────
 
     async def handle_open_report(self, interaction: discord.Interaction):
+        await interaction.response.defer(ephemeral=True)
         if interaction.user.id in self._report_active:
-            await interaction.response.send_message(
+            await interaction.followup.send(
                 embed=warning_embed("You already have a report in progress. Check your DMs."),
                 ephemeral=True,
             )
@@ -240,7 +243,7 @@ class Tickets(commands.Cog):
 
         report_ch_id = await self.db.get_config(interaction.guild_id, "report_channel_id")
         if not report_ch_id:
-            await interaction.response.send_message(
+            await interaction.followup.send(
                 embed=error_embed("Reports are not configured yet. Ask an admin to run `/reportsetup setchannel`."),
                 ephemeral=True,
             )
@@ -262,13 +265,13 @@ class Tickets(commands.Cog):
                 )
             )
         except discord.Forbidden:
-            await interaction.response.send_message(
+            await interaction.followup.send(
                 embed=error_embed("I couldn't DM you. Please enable DMs from server members and try again."),
                 ephemeral=True,
             )
             return
 
-        await interaction.response.send_message(
+        await interaction.followup.send(
             embed=success_embed("Check your DMs to complete your report.", title="Report Started"),
             ephemeral=True,
         )
@@ -374,6 +377,7 @@ class Tickets(commands.Cog):
     @is_admin()
     @app_commands.describe(channel="Channel to post the panel in")
     async def ticketsetup_panel(self, interaction: discord.Interaction, channel: discord.TextChannel):
+        await interaction.response.defer(ephemeral=True)
         embed = build_embed(
             title="Support Tickets",
             description=(
@@ -385,7 +389,7 @@ class Tickets(commands.Cog):
         )
         await channel.send(embed=embed, view=TicketPanelView(self))
         await self.db.set_config(interaction.guild_id, "ticket_panel_channel_id", str(channel.id))
-        await interaction.response.send_message(
+        await interaction.followup.send(
             embed=success_embed(f"Ticket panel posted in {channel.mention}.", title="Panel Created"),
             ephemeral=True,
         )
@@ -397,8 +401,9 @@ class Tickets(commands.Cog):
     async def ticketsetup_setcategory(
         self, interaction: discord.Interaction, category: discord.CategoryChannel
     ):
+        await interaction.response.defer(ephemeral=True)
         await self.db.set_config(interaction.guild_id, "ticket_category_id", str(category.id))
-        await interaction.response.send_message(
+        await interaction.followup.send(
             embed=success_embed(f"Ticket channels will be created under **{category.name}**.", title="Category Set"),
             ephemeral=True,
         )
@@ -409,8 +414,9 @@ class Tickets(commands.Cog):
     async def ticketsetup_setlogchannel(
         self, interaction: discord.Interaction, channel: discord.TextChannel
     ):
+        await interaction.response.defer(ephemeral=True)
         await self.db.set_config(interaction.guild_id, "ticket_log_channel_id", str(channel.id))
-        await interaction.response.send_message(
+        await interaction.followup.send(
             embed=success_embed(f"Ticket close logs will be posted to {channel.mention}.", title="Log Channel Set"),
             ephemeral=True,
         )
@@ -425,6 +431,7 @@ class Tickets(commands.Cog):
     @is_admin()
     @app_commands.describe(channel="Channel to post the panel in")
     async def reportsetup_panel(self, interaction: discord.Interaction, channel: discord.TextChannel):
+        await interaction.response.defer(ephemeral=True)
         embed = build_embed(
             title="Report a Member",
             description=(
@@ -436,7 +443,7 @@ class Tickets(commands.Cog):
         )
         await channel.send(embed=embed, view=ReportPanelView(self))
         await self.db.set_config(interaction.guild_id, "report_panel_channel_id", str(channel.id))
-        await interaction.response.send_message(
+        await interaction.followup.send(
             embed=success_embed(f"Report panel posted in {channel.mention}.", title="Panel Created"),
             ephemeral=True,
         )
@@ -448,8 +455,9 @@ class Tickets(commands.Cog):
     async def reportsetup_setchannel(
         self, interaction: discord.Interaction, channel: discord.TextChannel
     ):
+        await interaction.response.defer(ephemeral=True)
         await self.db.set_config(interaction.guild_id, "report_channel_id", str(channel.id))
-        await interaction.response.send_message(
+        await interaction.followup.send(
             embed=success_embed(f"Submitted reports will be posted to {channel.mention}.", title="Report Channel Set"),
             ephemeral=True,
         )
@@ -460,17 +468,18 @@ class Tickets(commands.Cog):
         self, interaction: discord.Interaction, error: app_commands.AppCommandError
     ):
         if isinstance(error, app_commands.CheckFailure):
-            if not interaction.response.is_done():
-                await interaction.response.send_message(
-                    embed=error_embed("You don't have permission to use this command."),
-                    ephemeral=True,
-                )
+            msg = error_embed("You don't have permission to use this command.")
         else:
             log.error(f"Tickets command error: {error}", exc_info=True)
-            if not interaction.response.is_done():
-                await interaction.response.send_message(
-                    embed=error_embed("An unexpected error occurred."), ephemeral=True
-                )
+            msg = error_embed("An unexpected error occurred.")
+
+        try:
+            if interaction.response.is_done():
+                await interaction.followup.send(embed=msg, ephemeral=True)
+            else:
+                await interaction.response.send_message(embed=msg, ephemeral=True)
+        except discord.NotFound:
+            pass
 
 
 async def setup(bot: commands.Bot):

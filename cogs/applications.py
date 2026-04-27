@@ -39,8 +39,9 @@ class Applications(commands.Cog):
 
     @app_commands.command(name="apply", description="Apply to become a server moderator")
     async def apply(self, interaction: discord.Interaction):
+        await interaction.response.defer(ephemeral=True)
         if interaction.user.id in self._active:
-            await interaction.response.send_message(
+            await interaction.followup.send(
                 embed=warning_embed("You already have an active application in progress. Check your DMs."),
                 ephemeral=True,
             )
@@ -48,7 +49,7 @@ class Applications(commands.Cog):
 
         app_ch_id = await self.db.get_config(interaction.guild_id, "app_channel_id")
         if not app_ch_id:
-            await interaction.response.send_message(
+            await interaction.followup.send(
                 embed=error_embed(
                     "Applications are not configured yet. Ask an admin to run `/appsetup setchannel`."
                 ),
@@ -72,7 +73,7 @@ class Applications(commands.Cog):
                 )
             )
         except discord.Forbidden:
-            await interaction.response.send_message(
+            await interaction.followup.send(
                 embed=error_embed(
                     "I couldn't send you a DM. Please enable DMs from server members and try again."
                 ),
@@ -80,7 +81,7 @@ class Applications(commands.Cog):
             )
             return
 
-        await interaction.response.send_message(
+        await interaction.followup.send(
             embed=success_embed(
                 "Check your DMs! Answer all 10 questions to submit your application.",
                 title="Application Started",
@@ -217,9 +218,10 @@ class Applications(commands.Cog):
     async def appsetup_setchannel(
         self, interaction: discord.Interaction, channel: discord.TextChannel
     ):
+        await interaction.response.defer(ephemeral=True)
         await self.db.set_config(interaction.guild_id, "app_channel_id", str(channel.id))
         log.info(f"Application channel set to #{channel} ({channel.id}) by {interaction.user}")
-        await interaction.response.send_message(
+        await interaction.followup.send(
             embed=success_embed(
                 f"Completed applications will now be posted to {channel.mention}.",
                 title="Application Channel Set",
@@ -232,9 +234,10 @@ class Applications(commands.Cog):
     )
     @is_admin()
     async def appsetup_status(self, interaction: discord.Interaction):
+        await interaction.response.defer(ephemeral=True)
         app_ch_id = await self.db.get_config(interaction.guild_id, "app_channel_id")
         if not app_ch_id:
-            await interaction.response.send_message(
+            await interaction.followup.send(
                 embed=info_embed(
                     "No application channel configured. Use `/appsetup setchannel` to set one.",
                     title="Application Setup",
@@ -244,7 +247,7 @@ class Applications(commands.Cog):
             return
         ch = interaction.guild.get_channel(int(app_ch_id))
         ch_ref = ch.mention if ch else f"`{app_ch_id}` *(channel not found)*"
-        await interaction.response.send_message(
+        await interaction.followup.send(
             embed=info_embed(
                 f"Applications are currently posting to {ch_ref}.",
                 title="Application Setup",
@@ -258,17 +261,18 @@ class Applications(commands.Cog):
         self, interaction: discord.Interaction, error: app_commands.AppCommandError
     ):
         if isinstance(error, app_commands.CheckFailure):
-            if not interaction.response.is_done():
-                await interaction.response.send_message(
-                    embed=error_embed("You don't have permission to use this command."),
-                    ephemeral=True,
-                )
+            msg = error_embed("You don't have permission to use this command.")
         else:
             log.error(f"Applications command error: {error}", exc_info=True)
-            if not interaction.response.is_done():
-                await interaction.response.send_message(
-                    embed=error_embed("An unexpected error occurred."), ephemeral=True
-                )
+            msg = error_embed("An unexpected error occurred.")
+
+        try:
+            if interaction.response.is_done():
+                await interaction.followup.send(embed=msg, ephemeral=True)
+            else:
+                await interaction.response.send_message(embed=msg, ephemeral=True)
+        except discord.NotFound:
+            pass
 
 
 async def setup(bot: commands.Bot):

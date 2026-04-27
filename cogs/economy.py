@@ -97,6 +97,7 @@ class Economy(commands.Cog):
     @app_commands.command(name="balance", description="Check your Cypher Credits balance")
     @app_commands.describe(user="User to check (defaults to you)")
     async def balance(self, interaction: discord.Interaction, user: discord.Member | None = None):
+        await interaction.response.defer()
         target = user or interaction.user
         await self.db.ensure_user(target.id, interaction.guild_id)
         row = await self.db.get_user(target.id, interaction.guild_id)
@@ -106,7 +107,7 @@ class Economy(commands.Cog):
             color=0x00B4CC,
             thumbnail=target.display_avatar.url,
         )
-        await interaction.response.send_message(embed=embed)
+        await interaction.followup.send(embed=embed)
 
     # ─── /daily ───────────────────────────────────────────────────────────────
 
@@ -176,27 +177,28 @@ class Economy(commands.Cog):
     @app_commands.command(name="pay", description="Transfer Cypher Credits to another user")
     @app_commands.describe(user="Recipient", amount="CC to send (minimum 10)")
     async def pay(self, interaction: discord.Interaction, user: discord.Member, amount: int):
+        await interaction.response.defer()
         if user.bot or user.id == interaction.user.id:
-            await interaction.response.send_message(
+            await interaction.followup.send(
                 embed=error_embed("You can't transfer credits to yourself or a bot."), ephemeral=True
             )
             return
         if amount < MIN_TRANSFER:
-            await interaction.response.send_message(
+            await interaction.followup.send(
                 embed=error_embed(f"Minimum transfer is **{MIN_TRANSFER} CC**."), ephemeral=True
             )
             return
 
         success, new_bal = await self.db.mutate_credits(interaction.user.id, interaction.guild_id, -amount)
         if not success:
-            await interaction.response.send_message(
+            await interaction.followup.send(
                 embed=error_embed("Insufficient balance for this transfer."), ephemeral=True
             )
             return
 
         await self.db.mutate_credits(user.id, interaction.guild_id, amount)
         log.info(f"Transfer: {interaction.user} → {user} {amount} CC")
-        await interaction.response.send_message(
+        await interaction.followup.send(
             embed=success_embed(
                 f"Transferred **{amount:,} CC** to {user.mention}\nYour balance: **{new_bal:,} CC**",
                 title="Transfer Complete",
@@ -208,6 +210,7 @@ class Economy(commands.Cog):
     @app_commands.command(name="shop", description="Browse available shop items")
     @app_commands.describe(page="Page number")
     async def shop(self, interaction: discord.Interaction, page: int = 1):
+        await interaction.response.defer()
         if page < 1:
             page = 1
         offset = (page - 1) * ITEMS_PER_PAGE
@@ -216,7 +219,7 @@ class Economy(commands.Cog):
         total_pages = max(1, (total + ITEMS_PER_PAGE - 1) // ITEMS_PER_PAGE)
 
         if not items:
-            await interaction.response.send_message(
+            await interaction.followup.send(
                 embed=info_embed("The shop is currently empty. Check back later.", title="Shop"), ephemeral=True
             )
             return
@@ -237,7 +240,7 @@ class Economy(commands.Cog):
             footer=f"Page {page}/{total_pages} · Use /buy <item_id> to purchase",
         )
         view = _ShopView(self, interaction.guild_id, page, total_pages)
-        await interaction.response.send_message(embed=embed, view=view)
+        await interaction.followup.send(embed=embed, view=view)
 
     # ─── /buy ─────────────────────────────────────────────────────────────────
 
@@ -372,10 +375,11 @@ class Economy(commands.Cog):
     @app_commands.command(name="inventory", description="View your purchased items")
     @app_commands.describe(user="User to check (defaults to you)")
     async def inventory(self, interaction: discord.Interaction, user: discord.Member | None = None):
+        await interaction.response.defer()
         target = user or interaction.user
         items = await self.db.get_inventory(target.id, interaction.guild_id)
         if not items:
-            await interaction.response.send_message(
+            await interaction.followup.send(
                 embed=info_embed("No items in inventory.", title=f"{target.display_name}'s Inventory"),
                 ephemeral=True,
             )
@@ -393,22 +397,23 @@ class Economy(commands.Cog):
             description="\n".join(lines),
             color=0x00B4CC,
         )
-        await interaction.response.send_message(embed=embed)
+        await interaction.followup.send(embed=embed)
 
     # ─── /richlist ────────────────────────────────────────────────────────────
 
     @app_commands.command(name="richlist", description="Top 10 users by lifetime credits earned")
     async def richlist(self, interaction: discord.Interaction):
+        await interaction.response.defer()
         rows = await self.db.get_richlist(interaction.guild_id)
         if not rows:
-            await interaction.response.send_message(embed=info_embed("No data yet.", title="Rich List"), ephemeral=True)
+            await interaction.followup.send(embed=info_embed("No data yet.", title="Rich List"), ephemeral=True)
             return
         lines = []
         for i, row in enumerate(rows, 1):
             m = interaction.guild.get_member(row["user_id"])
             name = m.display_name if m else f"User#{row['user_id']}"
             lines.append(f"`{i:>2}.` **{name}** — {row['total_earned']:,} CC lifetime")
-        await interaction.response.send_message(
+        await interaction.followup.send(
             embed=build_embed(title="⚡ Rich List", description="\n".join(lines), color=0xD97706)
         )
 
@@ -418,12 +423,13 @@ class Economy(commands.Cog):
     @is_admin()
     @app_commands.describe(user="Target user", amount="CC to grant")
     async def give(self, interaction: discord.Interaction, user: discord.Member, amount: int):
+        await interaction.response.defer()
         if amount <= 0:
-            await interaction.response.send_message(embed=error_embed("Amount must be positive."), ephemeral=True)
+            await interaction.followup.send(embed=error_embed("Amount must be positive."), ephemeral=True)
             return
         new_bal = await self.db.admin_mutate_credits(user.id, interaction.guild_id, amount)
         log.info(f"Admin give: {amount} CC to {user} by {interaction.user}")
-        await interaction.response.send_message(
+        await interaction.followup.send(
             embed=success_embed(f"Granted **{amount:,} CC** to {user.mention}\nBalance: **{new_bal:,} CC**")
         )
 
@@ -431,12 +437,13 @@ class Economy(commands.Cog):
     @is_admin()
     @app_commands.describe(user="Target user", amount="CC to remove")
     async def take(self, interaction: discord.Interaction, user: discord.Member, amount: int):
+        await interaction.response.defer()
         if amount <= 0:
-            await interaction.response.send_message(embed=error_embed("Amount must be positive."), ephemeral=True)
+            await interaction.followup.send(embed=error_embed("Amount must be positive."), ephemeral=True)
             return
         new_bal = await self.db.admin_mutate_credits(user.id, interaction.guild_id, -amount)
         log.info(f"Admin take: {amount} CC from {user} by {interaction.user}")
-        await interaction.response.send_message(
+        await interaction.followup.send(
             embed=success_embed(f"Removed **{amount:,} CC** from {user.mention}\nBalance: **{new_bal:,} CC**")
         )
 

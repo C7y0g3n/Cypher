@@ -91,12 +91,13 @@ class Moderation(commands.Cog):
     @is_mod()
     @app_commands.describe(user="User to ban", reason="Reason (required)", delete_days="Days of messages to delete (0-7)")
     async def ban(self, interaction: discord.Interaction, user: discord.Member, reason: str, delete_days: int = 0):
+        await interaction.response.defer()
         if not reason.strip():
-            await interaction.response.send_message(embed=error_embed("A reason is required."), ephemeral=True)
+            await interaction.followup.send(embed=error_embed("A reason is required."), ephemeral=True)
             return
         err = self._can_action(interaction.guild, interaction.user, user)
         if err:
-            await interaction.response.send_message(embed=error_embed(err), ephemeral=True)
+            await interaction.followup.send(embed=error_embed(err), ephemeral=True)
             return
 
         try:
@@ -107,7 +108,7 @@ class Moderation(commands.Cog):
         delete_days = max(0, min(7, delete_days))
         await interaction.guild.ban(user, reason=f"[{interaction.user}] {reason}", delete_message_days=delete_days)
         await self._log_action(interaction.guild, user, interaction.user, "ban", reason)
-        await interaction.response.send_message(
+        await interaction.followup.send(
             embed=success_embed(f"**{user}** has been banned.\nReason: {reason}", title="User Banned")
         )
 
@@ -117,12 +118,13 @@ class Moderation(commands.Cog):
     @is_mod()
     @app_commands.describe(user="User to kick", reason="Reason (required)")
     async def kick(self, interaction: discord.Interaction, user: discord.Member, reason: str):
+        await interaction.response.defer()
         if not reason.strip():
-            await interaction.response.send_message(embed=error_embed("A reason is required."), ephemeral=True)
+            await interaction.followup.send(embed=error_embed("A reason is required."), ephemeral=True)
             return
         err = self._can_action(interaction.guild, interaction.user, user)
         if err:
-            await interaction.response.send_message(embed=error_embed(err), ephemeral=True)
+            await interaction.followup.send(embed=error_embed(err), ephemeral=True)
             return
 
         try:
@@ -132,7 +134,7 @@ class Moderation(commands.Cog):
 
         await user.kick(reason=f"[{interaction.user}] {reason}")
         await self._log_action(interaction.guild, user, interaction.user, "kick", reason)
-        await interaction.response.send_message(
+        await interaction.followup.send(
             embed=success_embed(f"**{user}** has been kicked.\nReason: {reason}", title="User Kicked")
         )
 
@@ -142,18 +144,19 @@ class Moderation(commands.Cog):
     @is_mod()
     @app_commands.describe(user="User to timeout", minutes="Duration in minutes (max 40320)", reason="Reason")
     async def timeout(self, interaction: discord.Interaction, user: discord.Member, minutes: int, reason: str):
+        await interaction.response.defer()
         if not reason.strip():
-            await interaction.response.send_message(embed=error_embed("A reason is required."), ephemeral=True)
+            await interaction.followup.send(embed=error_embed("A reason is required."), ephemeral=True)
             return
         err = self._can_action(interaction.guild, interaction.user, user)
         if err:
-            await interaction.response.send_message(embed=error_embed(err), ephemeral=True)
+            await interaction.followup.send(embed=error_embed(err), ephemeral=True)
             return
         minutes = max(1, min(40320, minutes))
         until = discord.utils.utcnow() + timedelta(minutes=minutes)
         await user.timeout(until, reason=f"[{interaction.user}] {reason}")
         await self._log_action(interaction.guild, user, interaction.user, "timeout", reason, duration=minutes * 60)
-        await interaction.response.send_message(
+        await interaction.followup.send(
             embed=success_embed(f"**{user}** timed out for **{minutes}m**.\nReason: {reason}", title="User Timed Out")
         )
 
@@ -163,9 +166,10 @@ class Moderation(commands.Cog):
     @is_mod()
     @app_commands.describe(user="User to un-timeout", reason="Reason")
     async def untimeout(self, interaction: discord.Interaction, user: discord.Member, reason: str = "Timeout removed"):
+        await interaction.response.defer()
         await user.timeout(None, reason=f"[{interaction.user}] {reason}")
         await self._log_action(interaction.guild, user, interaction.user, "untimeout", reason)
-        await interaction.response.send_message(
+        await interaction.followup.send(
             embed=success_embed(f"Timeout removed from **{user}**.", title="Timeout Removed")
         )
 
@@ -175,12 +179,13 @@ class Moderation(commands.Cog):
     @is_mod()
     @app_commands.describe(user="User to warn", reason="Reason")
     async def warn(self, interaction: discord.Interaction, user: discord.Member, reason: str):
+        await interaction.response.defer()
         if not reason.strip():
-            await interaction.response.send_message(embed=error_embed("A reason is required."), ephemeral=True)
+            await interaction.followup.send(embed=error_embed("A reason is required."), ephemeral=True)
             return
         err = self._can_action(interaction.guild, interaction.user, user)
         if err:
-            await interaction.response.send_message(embed=error_embed(err), ephemeral=True)
+            await interaction.followup.send(embed=error_embed(err), ephemeral=True)
             return
 
         await self._log_action(interaction.guild, user, interaction.user, "warn", reason)
@@ -200,7 +205,7 @@ class Moderation(commands.Cog):
         )
         if warn_count >= 3:
             embed.add_field(name="⚠ Auto-Action", value=f"{'1hr timeout applied' if warn_count == 3 else 'Admin notified (5 warns)'}", inline=False)
-        await interaction.response.send_message(embed=embed)
+        await interaction.followup.send(embed=embed)
 
     # ─── /warns ───────────────────────────────────────────────────────────────
 
@@ -208,13 +213,14 @@ class Moderation(commands.Cog):
     @is_mod()
     @app_commands.describe(user="User to check", page="Page number")
     async def warns(self, interaction: discord.Interaction, user: discord.Member, page: int = 1):
+        await interaction.response.defer()
         offset = (page - 1) * LOGS_PER_PAGE
         rows = await self.db.get_mod_logs(interaction.guild_id, user.id, limit=LOGS_PER_PAGE, offset=offset)
         warn_rows = [r for r in rows if r["action"] == "warn"]
         total = await self.db.get_warn_count(interaction.guild_id, user.id)
 
         if not warn_rows:
-            await interaction.response.send_message(
+            await interaction.followup.send(
                 embed=info_embed(f"No warnings on record for {user.mention}.", title="Warnings"), ephemeral=True
             )
             return
@@ -230,7 +236,7 @@ class Moderation(commands.Cog):
             color=0xD97706,
             footer=f"Page {page}",
         )
-        await interaction.response.send_message(embed=embed)
+        await interaction.followup.send(embed=embed)
 
     # ─── /delwarn ─────────────────────────────────────────────────────────────
 
@@ -238,13 +244,14 @@ class Moderation(commands.Cog):
     @is_admin()
     @app_commands.describe(log_id="Log ID to delete")
     async def delwarn(self, interaction: discord.Interaction, log_id: int):
+        await interaction.response.defer(ephemeral=True)
         ok = await self.db.delete_mod_log(log_id, interaction.guild_id)
         if not ok:
-            await interaction.response.send_message(
+            await interaction.followup.send(
                 embed=error_embed(f"Log `#{log_id}` not found in this guild."), ephemeral=True
             )
             return
-        await interaction.response.send_message(
+        await interaction.followup.send(
             embed=success_embed(f"Log `#{log_id}` deleted.", title="Warning Deleted"), ephemeral=True
         )
 
@@ -273,10 +280,11 @@ class Moderation(commands.Cog):
     @is_mod()
     @app_commands.describe(seconds="Slowmode delay in seconds")
     async def slowmode(self, interaction: discord.Interaction, seconds: int):
+        await interaction.response.defer()
         seconds = max(0, min(21600, seconds))
         await interaction.channel.edit(slowmode_delay=seconds)
         msg = f"Slowmode set to **{seconds}s**." if seconds > 0 else "Slowmode **disabled**."
-        await interaction.response.send_message(embed=success_embed(msg))
+        await interaction.followup.send(embed=success_embed(msg))
 
     # ─── /lock & /unlock ──────────────────────────────────────────────────────
 
@@ -289,11 +297,12 @@ class Moderation(commands.Cog):
         channel: discord.TextChannel | None = None,
         reason: str = "Channel locked by moderator",
     ):
+        await interaction.response.defer()
         ch = channel or interaction.channel
         overwrite = ch.overwrites_for(interaction.guild.default_role)
         overwrite.send_messages = False
         await ch.set_permissions(interaction.guild.default_role, overwrite=overwrite, reason=reason)
-        await interaction.response.send_message(embed=success_embed(f"{ch.mention} has been **locked**.", title="Channel Locked"))
+        await interaction.followup.send(embed=success_embed(f"{ch.mention} has been **locked**.", title="Channel Locked"))
 
     @app_commands.command(name="unlock", description="Unlock a channel")
     @is_mod()
@@ -304,11 +313,12 @@ class Moderation(commands.Cog):
         channel: discord.TextChannel | None = None,
         reason: str = "Channel unlocked by moderator",
     ):
+        await interaction.response.defer()
         ch = channel or interaction.channel
         overwrite = ch.overwrites_for(interaction.guild.default_role)
         overwrite.send_messages = None
         await ch.set_permissions(interaction.guild.default_role, overwrite=overwrite, reason=reason)
-        await interaction.response.send_message(embed=success_embed(f"{ch.mention} has been **unlocked**.", title="Channel Unlocked"))
+        await interaction.followup.send(embed=success_embed(f"{ch.mention} has been **unlocked**.", title="Channel Unlocked"))
 
     # ─── /unban ───────────────────────────────────────────────────────────────
 
@@ -316,18 +326,19 @@ class Moderation(commands.Cog):
     @is_admin()
     @app_commands.describe(user_id="User snowflake ID", reason="Reason")
     async def unban(self, interaction: discord.Interaction, user_id: str, reason: str = "Unbanned by admin"):
+        await interaction.response.defer()
         try:
             uid = int(user_id)
         except ValueError:
-            await interaction.response.send_message(embed=error_embed("Invalid user ID."), ephemeral=True)
+            await interaction.followup.send(embed=error_embed("Invalid user ID."), ephemeral=True)
             return
         try:
             await interaction.guild.unban(discord.Object(id=uid), reason=f"[{interaction.user}] {reason}")
         except discord.NotFound:
-            await interaction.response.send_message(embed=error_embed(f"User `{uid}` is not banned."), ephemeral=True)
+            await interaction.followup.send(embed=error_embed(f"User `{uid}` is not banned."), ephemeral=True)
             return
         await self._log_action(interaction.guild, discord.Object(id=uid), interaction.user, "unban", reason)
-        await interaction.response.send_message(
+        await interaction.followup.send(
             embed=success_embed(f"User `{uid}` has been unbanned.\nReason: {reason}", title="User Unbanned")
         )
 
@@ -337,12 +348,13 @@ class Moderation(commands.Cog):
     @is_mod()
     @app_commands.describe(user="Target user", page="Page number")
     async def modlogs(self, interaction: discord.Interaction, user: discord.Member, page: int = 1):
+        await interaction.response.defer()
         offset = (page - 1) * LOGS_PER_PAGE
         rows = await self.db.get_mod_logs(interaction.guild_id, user.id, limit=LOGS_PER_PAGE, offset=offset)
         total = await self.db.count_mod_logs(interaction.guild_id, user.id)
 
         if not rows:
-            await interaction.response.send_message(
+            await interaction.followup.send(
                 embed=info_embed(f"No mod history for {user.mention}.", title="Mod Logs"), ephemeral=True
             )
             return
@@ -364,7 +376,7 @@ class Moderation(commands.Cog):
             footer=f"Page {page}",
         )
         view = _ModLogsView(self, interaction.guild_id, user.id, page, total)
-        await interaction.response.send_message(embed=embed, view=view)
+        await interaction.followup.send(embed=embed, view=view)
 
     # ─── Prefix equivalents ───────────────────────────────────────────────────
 
@@ -415,14 +427,18 @@ class Moderation(commands.Cog):
 
     async def cog_app_command_error(self, interaction: discord.Interaction, error: app_commands.AppCommandError):
         if isinstance(error, app_commands.CheckFailure):
-            if not interaction.response.is_done():
-                await interaction.response.send_message(
-                    embed=error_embed("You don't have permission to use this command."), ephemeral=True
-                )
+            msg = error_embed("You don't have permission to use this command.")
         else:
             log.error(f"Mod command error: {error}", exc_info=True)
-            if not interaction.response.is_done():
-                await interaction.response.send_message(embed=error_embed("An unexpected error occurred."), ephemeral=True)
+            msg = error_embed("An unexpected error occurred.")
+
+        try:
+            if interaction.response.is_done():
+                await interaction.followup.send(embed=msg, ephemeral=True)
+            else:
+                await interaction.response.send_message(embed=msg, ephemeral=True)
+        except discord.NotFound:
+            pass
 
 
 class _ModLogsView(discord.ui.View):

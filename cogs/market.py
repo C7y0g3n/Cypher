@@ -103,9 +103,10 @@ class MarketCog(commands.Cog, name="Market"):
 
     @app_commands.command(name="market", description="View current stock prices")
     async def market(self, interaction: discord.Interaction):
+        await interaction.response.defer()
         stocks = await self.db.get_stocks(interaction.guild_id)
         if not stocks:
-            await interaction.response.send_message(
+            await interaction.followup.send(
                 embed=error_embed("No stocks available yet."), ephemeral=True
             )
             return
@@ -124,22 +125,23 @@ class MarketCog(commands.Cog, name="Market"):
             color=0x00B4CC,
             footer=f"Use /invest <ticker> <amount> to buy · /divest <ticker> <shares> to sell",
         )
-        await interaction.response.send_message(embed=embed)
+        await interaction.followup.send(embed=embed)
 
     # ─── /invest ──────────────────────────────────────────────────────────────
 
     @app_commands.command(name="invest", description="Spend CC to buy shares of a stock")
     @app_commands.describe(ticker="Stock ticker (e.g. NEON)", amount="CC to spend")
     async def invest(self, interaction: discord.Interaction, ticker: str, amount: int):
+        await interaction.response.defer()
         if amount <= 0:
-            await interaction.response.send_message(
+            await interaction.followup.send(
                 embed=error_embed("Amount must be positive."), ephemeral=True
             )
             return
 
         stock = await self.db.get_stock(interaction.guild_id, ticker)
         if not stock:
-            await interaction.response.send_message(
+            await interaction.followup.send(
                 embed=error_embed(f"Unknown ticker `{ticker.upper()}`. Use `/market` to see available stocks."),
                 ephemeral=True,
             )
@@ -147,7 +149,7 @@ class MarketCog(commands.Cog, name="Market"):
 
         shares = amount // stock["price"]
         if shares < 1:
-            await interaction.response.send_message(
+            await interaction.followup.send(
                 embed=error_embed(
                     f"**{ticker.upper()}** costs `{stock['price']:,} CC` per share — "
                     f"you need at least that much to buy 1 share."
@@ -162,7 +164,7 @@ class MarketCog(commands.Cog, name="Market"):
         )
         if not ok:
             bal = await self.db.get_balance(interaction.user.id, interaction.guild_id)
-            await interaction.response.send_message(
+            await interaction.followup.send(
                 embed=error_embed(
                     f"Insufficient funds. You have `{bal:,} CC`, this costs `{actual_cost:,} CC`."
                 ),
@@ -170,7 +172,7 @@ class MarketCog(commands.Cog, name="Market"):
             )
             return
 
-        await interaction.response.send_message(
+        await interaction.followup.send(
             embed=success_embed(
                 f"Bought **{shares:,} share{'s' if shares != 1 else ''}** of `{stock['ticker']}` "
                 f"(**{stock['name']}**) for `{actual_cost:,} CC`\n"
@@ -184,15 +186,16 @@ class MarketCog(commands.Cog, name="Market"):
     @app_commands.command(name="divest", description="Sell shares of a stock for CC")
     @app_commands.describe(ticker="Stock ticker (e.g. NEON)", shares="Number of shares to sell")
     async def divest(self, interaction: discord.Interaction, ticker: str, shares: int):
+        await interaction.response.defer()
         if shares <= 0:
-            await interaction.response.send_message(
+            await interaction.followup.send(
                 embed=error_embed("Shares must be positive."), ephemeral=True
             )
             return
 
         stock = await self.db.get_stock(interaction.guild_id, ticker)
         if not stock:
-            await interaction.response.send_message(
+            await interaction.followup.send(
                 embed=error_embed(f"Unknown ticker `{ticker.upper()}`."), ephemeral=True
             )
             return
@@ -200,7 +203,7 @@ class MarketCog(commands.Cog, name="Market"):
         holding = await self.db.get_holding(interaction.user.id, interaction.guild_id, ticker)
         if not holding or holding["shares"] < shares:
             owned = holding["shares"] if holding else 0
-            await interaction.response.send_message(
+            await interaction.followup.send(
                 embed=error_embed(
                     f"You only own **{owned:,} share{'s' if owned != 1 else ''}** of `{ticker.upper()}`."
                 ),
@@ -217,12 +220,12 @@ class MarketCog(commands.Cog, name="Market"):
             interaction.user.id, interaction.guild_id, ticker, shares, proceeds
         )
         if not ok:
-            await interaction.response.send_message(
+            await interaction.followup.send(
                 embed=error_embed("Sale failed — please try again."), ephemeral=True
             )
             return
 
-        await interaction.response.send_message(
+        await interaction.followup.send(
             embed=success_embed(
                 f"Sold **{shares:,} share{'s' if shares != 1 else ''}** of `{stock['ticker']}` "
                 f"(**{stock['name']}**)\n"
@@ -236,11 +239,12 @@ class MarketCog(commands.Cog, name="Market"):
     @app_commands.command(name="portfolio", description="View your stock holdings")
     @app_commands.describe(user="User to check (defaults to you)")
     async def portfolio(self, interaction: discord.Interaction, user: discord.Member | None = None):
+        await interaction.response.defer()
         target = user or interaction.user
         holdings = await self.db.get_holdings(target.id, interaction.guild_id)
 
         if not holdings:
-            await interaction.response.send_message(
+            await interaction.followup.send(
                 embed=build_embed(
                     title=f"⚡ {target.display_name}'s Portfolio",
                     description="No holdings. Use `/invest <ticker> <amount>` to get started.",
@@ -277,7 +281,7 @@ class MarketCog(commands.Cog, name="Market"):
             footer=f"Total value: {total_value:,.0f} CC  ·  Total P&L: {pnl_sign}{total_pnl:,.0f} CC",
             thumbnail=target.display_avatar.url,
         )
-        await interaction.response.send_message(embed=embed)
+        await interaction.followup.send(embed=embed)
 
 
 async def setup(bot: commands.Bot):

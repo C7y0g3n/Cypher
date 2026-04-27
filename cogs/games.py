@@ -58,15 +58,16 @@ class Games(commands.Cog):
         app_commands.Choice(name="tails", value="tails"),
     ])
     async def coinflip(self, interaction: discord.Interaction, bet: int, side: str):
+        await interaction.response.defer()
         if bet < MIN_BET:
-            await interaction.response.send_message(
+            await interaction.followup.send(
                 embed=error_embed(f"Minimum bet is **{MIN_BET} CC**."), ephemeral=True
             )
             return
 
         remaining = self._check_cooldown(interaction.user.id, interaction.guild_id, "coinflip", COINFLIP_CD)
         if remaining:
-            await interaction.response.send_message(
+            await interaction.followup.send(
                 embed=warning_embed(f"Cooldown active. Try again in **{remaining}s**.", title="Coinflip Cooldown"),
                 ephemeral=True,
             )
@@ -76,7 +77,7 @@ class Games(commands.Cog):
         success, new_bal = await self.db.mutate_credits(interaction.user.id, interaction.guild_id, -bet)
         if not success:
             self._cooldowns.pop((interaction.user.id, interaction.guild_id, "coinflip"), None)
-            await interaction.response.send_message(
+            await interaction.followup.send(
                 embed=error_embed("Insufficient balance to place this bet."), ephemeral=True
             )
             return
@@ -107,22 +108,23 @@ class Games(commands.Cog):
         await self.db.add_game_stat(
             interaction.user.id, interaction.guild_id, "coinflip", bet, outcome, payout if won else 0
         )
-        await interaction.response.send_message(embed=embed)
+        await interaction.followup.send(embed=embed)
 
     # ─── /slots ───────────────────────────────────────────────────────────────
 
     @app_commands.command(name="slots", description="Spin the slot machine")
     @app_commands.describe(bet="Amount to wager (min 10 CC)")
     async def slots(self, interaction: discord.Interaction, bet: int):
+        await interaction.response.defer()
         if bet < MIN_BET:
-            await interaction.response.send_message(
+            await interaction.followup.send(
                 embed=error_embed(f"Minimum bet is **{MIN_BET} CC**."), ephemeral=True
             )
             return
 
         remaining = self._check_cooldown(interaction.user.id, interaction.guild_id, "slots", SLOTS_CD)
         if remaining:
-            await interaction.response.send_message(
+            await interaction.followup.send(
                 embed=warning_embed(f"Cooldown active. Try again in **{remaining}s**.", title="Slots Cooldown"),
                 ephemeral=True,
             )
@@ -131,7 +133,7 @@ class Games(commands.Cog):
         success, new_bal = await self.db.mutate_credits(interaction.user.id, interaction.guild_id, -bet)
         if not success:
             self._cooldowns.pop((interaction.user.id, interaction.guild_id, "slots"), None)
-            await interaction.response.send_message(
+            await interaction.followup.send(
                 embed=error_embed("Insufficient balance to place this bet."), ephemeral=True
             )
             return
@@ -172,7 +174,7 @@ class Games(commands.Cog):
         await self.db.add_game_stat(
             interaction.user.id, interaction.guild_id, "slots", bet, outcome, payout
         )
-        await interaction.response.send_message(embed=embed)
+        await interaction.followup.send(embed=embed)
 
     def _resolve_slots(self, r1: str, r2: str, r3: str, bet: int) -> tuple[int, str, str]:
         if r1 == r2 == r3:
@@ -195,11 +197,12 @@ class Games(commands.Cog):
     @app_commands.command(name="gamestats", description="View win/loss statistics")
     @app_commands.describe(user="User to check (defaults to you)")
     async def gamestats(self, interaction: discord.Interaction, user: discord.Member | None = None):
+        await interaction.response.defer()
         target = user or interaction.user
         rows = await self.db.get_game_stats(target.id, interaction.guild_id)
 
         if not rows:
-            await interaction.response.send_message(
+            await interaction.followup.send(
                 embed=info_embed("No game history found.", title=f"{target.display_name}'s Game Stats"),
                 ephemeral=True,
             )
@@ -219,7 +222,7 @@ class Games(commands.Cog):
             color=0x00B4CC,
             fields=fields,
         )
-        await interaction.response.send_message(embed=embed)
+        await interaction.followup.send(embed=embed)
 
     # ─── Prefix equivalents ───────────────────────────────────────────────────
 
@@ -278,14 +281,18 @@ class Games(commands.Cog):
 
     async def cog_app_command_error(self, interaction: discord.Interaction, error: app_commands.AppCommandError):
         if isinstance(error, app_commands.CheckFailure):
-            if not interaction.response.is_done():
-                await interaction.response.send_message(
-                    embed=error_embed("You don't have permission to use this command."), ephemeral=True
-                )
+            msg = error_embed("You don't have permission to use this command.")
         else:
             log.error(f"Games command error: {error}", exc_info=True)
-            if not interaction.response.is_done():
-                await interaction.response.send_message(embed=error_embed("An unexpected error occurred."), ephemeral=True)
+            msg = error_embed("An unexpected error occurred.")
+
+        try:
+            if interaction.response.is_done():
+                await interaction.followup.send(embed=msg, ephemeral=True)
+            else:
+                await interaction.response.send_message(embed=msg, ephemeral=True)
+        except discord.NotFound:
+            pass
 
 
 async def setup(bot: commands.Bot):

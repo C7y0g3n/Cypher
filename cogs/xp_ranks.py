@@ -178,12 +178,13 @@ class XPRanks(commands.Cog):
     @app_commands.command(name="leaderboard", description="Top 10 users by XP")
     @app_commands.describe(page="Page number")
     async def leaderboard(self, interaction: discord.Interaction, page: int = 1):
+        await interaction.response.defer()
         if page < 1:
             page = 1
         offset = (page - 1) * 10
         rows = await self.db.get_xp_leaderboard(interaction.guild_id, limit=10, offset=offset)
         if not rows:
-            await interaction.response.send_message(
+            await interaction.followup.send(
                 embed=info_embed("No data yet. Start chatting!", title="Leaderboard"), ephemeral=True
             )
             return
@@ -205,12 +206,13 @@ class XPRanks(commands.Cog):
             footer=f"Page {page}",
         )
         view = _LeaderboardView(self, interaction.guild_id, page)
-        await interaction.response.send_message(embed=embed, view=view)
+        await interaction.followup.send(embed=embed, view=view)
 
     # ─── /rankinfo ────────────────────────────────────────────────────────────
 
     @app_commands.command(name="rankinfo", description="List all rank tiers")
     async def rankinfo(self, interaction: discord.Interaction):
+        await interaction.response.defer()
         lines = []
         for lvl, (name, threshold) in config.RANK_THRESHOLDS.items():
             role_id = await self.db.get_config(interaction.guild_id, f"rank_role_{lvl}")
@@ -222,7 +224,7 @@ class XPRanks(commands.Cog):
             color=0x00B4CC,
             footer="XP earned via chat, voice, and daily rewards",
         )
-        await interaction.response.send_message(embed=embed)
+        await interaction.followup.send(embed=embed)
 
     # ─── /xp subcommands ──────────────────────────────────────────────────────
 
@@ -232,11 +234,12 @@ class XPRanks(commands.Cog):
     @is_admin()
     @app_commands.describe(user="Target user", amount="XP to add")
     async def xp_add(self, interaction: discord.Interaction, user: discord.Member, amount: int):
+        await interaction.response.defer()
         if amount <= 0:
-            await interaction.response.send_message(embed=error_embed("Amount must be positive."), ephemeral=True)
+            await interaction.followup.send(embed=error_embed("Amount must be positive."), ephemeral=True)
             return
         result = await self.db.update_xp(user.id, interaction.guild_id, amount)
-        await interaction.response.send_message(
+        await interaction.followup.send(
             embed=success_embed(
                 f"Added **{amount:,} XP** to {user.mention}\nNew total: **{result['xp']:,} XP** (Level {result['level']})"
             )
@@ -248,11 +251,12 @@ class XPRanks(commands.Cog):
     @is_admin()
     @app_commands.describe(user="Target user", amount="XP to remove")
     async def xp_remove(self, interaction: discord.Interaction, user: discord.Member, amount: int):
+        await interaction.response.defer()
         if amount <= 0:
-            await interaction.response.send_message(embed=error_embed("Amount must be positive."), ephemeral=True)
+            await interaction.followup.send(embed=error_embed("Amount must be positive."), ephemeral=True)
             return
         result = await self.db.update_xp(user.id, interaction.guild_id, -amount)
-        await interaction.response.send_message(
+        await interaction.followup.send(
             embed=success_embed(
                 f"Removed **{amount:,} XP** from {user.mention}\nNew total: **{result['xp']:,} XP** (Level {result['level']})"
             )
@@ -264,11 +268,12 @@ class XPRanks(commands.Cog):
     @is_admin()
     @app_commands.describe(user="Target user", amount="XP value to set")
     async def xp_set(self, interaction: discord.Interaction, user: discord.Member, amount: int):
+        await interaction.response.defer()
         if amount < 0:
-            await interaction.response.send_message(embed=error_embed("XP cannot be negative."), ephemeral=True)
+            await interaction.followup.send(embed=error_embed("XP cannot be negative."), ephemeral=True)
             return
         result = await self.db.set_xp(user.id, interaction.guild_id, amount)
-        await interaction.response.send_message(
+        await interaction.followup.send(
             embed=success_embed(
                 f"Set {user.mention}'s XP to **{amount:,}** (Level {result['level']})"
             )
@@ -342,14 +347,18 @@ class XPRanks(commands.Cog):
 
     async def cog_app_command_error(self, interaction: discord.Interaction, error: app_commands.AppCommandError):
         if isinstance(error, app_commands.CheckFailure):
-            if not interaction.response.is_done():
-                await interaction.response.send_message(
-                    embed=error_embed("You don't have permission to use this command."), ephemeral=True
-                )
+            msg = error_embed("You don't have permission to use this command.")
         else:
             log.error(f"XP command error: {error}", exc_info=True)
-            if not interaction.response.is_done():
-                await interaction.response.send_message(embed=error_embed("An unexpected error occurred."), ephemeral=True)
+            msg = error_embed("An unexpected error occurred.")
+
+        try:
+            if interaction.response.is_done():
+                await interaction.followup.send(embed=msg, ephemeral=True)
+            else:
+                await interaction.response.send_message(embed=msg, ephemeral=True)
+        except discord.NotFound:
+            pass
 
 
 class _LeaderboardView(discord.ui.View):

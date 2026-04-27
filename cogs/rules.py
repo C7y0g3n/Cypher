@@ -48,9 +48,10 @@ class Rules(commands.Cog):
     # ─── Accept handler ───────────────────────────────────────────────────────
 
     async def handle_accept(self, interaction: discord.Interaction):
+        await interaction.response.defer(ephemeral=True)
         role_id = await self.db.get_config(interaction.guild_id, "rules_role_id")
         if not role_id:
-            await interaction.response.send_message(
+            await interaction.followup.send(
                 embed=error_embed(
                     "No role is configured for rule acceptance. Ask an admin to run `/rulessetup setrole`."
                 ),
@@ -60,14 +61,14 @@ class Rules(commands.Cog):
 
         role = interaction.guild.get_role(int(role_id))
         if not role:
-            await interaction.response.send_message(
+            await interaction.followup.send(
                 embed=error_embed("The configured role no longer exists. Contact an admin."),
                 ephemeral=True,
             )
             return
 
         if role in interaction.user.roles:
-            await interaction.response.send_message(
+            await interaction.followup.send(
                 embed=info_embed("You have already accepted the rules.", title="Already Accepted"),
                 ephemeral=True,
             )
@@ -76,13 +77,13 @@ class Rules(commands.Cog):
         try:
             await interaction.user.add_roles(role, reason="Accepted server rules via panel")
         except discord.Forbidden:
-            await interaction.response.send_message(
+            await interaction.followup.send(
                 embed=error_embed("I don't have permission to assign that role. Contact an admin."),
                 ephemeral=True,
             )
             return
 
-        await interaction.response.send_message(
+        await interaction.followup.send(
             embed=success_embed(
                 f"You've been given the **{role.name}** role. Welcome to the server!",
                 title="Rules Accepted",
@@ -101,8 +102,9 @@ class Rules(commands.Cog):
     @is_admin()
     @app_commands.describe(role="Role to assign on acceptance")
     async def rulessetup_setrole(self, interaction: discord.Interaction, role: discord.Role):
+        await interaction.response.defer(ephemeral=True)
         if role >= interaction.guild.me.top_role:
-            await interaction.response.send_message(
+            await interaction.followup.send(
                 embed=error_embed(
                     f"**{role.name}** is above my highest role — I can't assign it. "
                     "Move the bot's role above it and try again."
@@ -113,7 +115,7 @@ class Rules(commands.Cog):
 
         await self.db.set_config(interaction.guild_id, "rules_role_id", str(role.id))
         log.info(f"Rules role set to '{role.name}' ({role.id}) by {interaction.user}")
-        await interaction.response.send_message(
+        await interaction.followup.send(
             embed=success_embed(
                 f"Members will receive **{role.name}** after accepting the rules.",
                 title="Role Set",
@@ -135,9 +137,10 @@ class Rules(commands.Cog):
         title: str = DEFAULT_TITLE,
         description: str = DEFAULT_DESCRIPTION,
     ):
+        await interaction.response.defer(ephemeral=True)
         role_id = await self.db.get_config(interaction.guild_id, "rules_role_id")
         if not role_id:
-            await interaction.response.send_message(
+            await interaction.followup.send(
                 embed=error_embed(
                     "Set a role first with `/rulessetup setrole <role>` before posting the panel."
                 ),
@@ -158,7 +161,7 @@ class Rules(commands.Cog):
         await self.db.set_config(interaction.guild_id, "rules_panel_channel_id", str(channel.id))
 
         log.info(f"Rules panel posted in #{channel} by {interaction.user}")
-        await interaction.response.send_message(
+        await interaction.followup.send(
             embed=success_embed(f"Rules panel posted in {channel.mention}.", title="Panel Created"),
             ephemeral=True,
         )
@@ -166,6 +169,7 @@ class Rules(commands.Cog):
     @rulessetup_group.command(name="status", description="Check the current rules panel configuration")
     @is_admin()
     async def rulessetup_status(self, interaction: discord.Interaction):
+        await interaction.response.defer(ephemeral=True)
         role_id = await self.db.get_config(interaction.guild_id, "rules_role_id")
         panel_ch_id = await self.db.get_config(interaction.guild_id, "rules_panel_channel_id")
 
@@ -187,7 +191,7 @@ class Rules(commands.Cog):
                 ("Panel Channel", ch_str, True),
             ],
         )
-        await interaction.response.send_message(embed=embed, ephemeral=True)
+        await interaction.followup.send(embed=embed, ephemeral=True)
 
     # ─── Error handler ────────────────────────────────────────────────────────
 
@@ -195,17 +199,18 @@ class Rules(commands.Cog):
         self, interaction: discord.Interaction, error: app_commands.AppCommandError
     ):
         if isinstance(error, app_commands.CheckFailure):
-            if not interaction.response.is_done():
-                await interaction.response.send_message(
-                    embed=error_embed("You don't have permission to use this command."),
-                    ephemeral=True,
-                )
+            msg = error_embed("You don't have permission to use this command.")
         else:
             log.error(f"Rules command error: {error}", exc_info=True)
-            if not interaction.response.is_done():
-                await interaction.response.send_message(
-                    embed=error_embed("An unexpected error occurred."), ephemeral=True
-                )
+            msg = error_embed("An unexpected error occurred.")
+
+        try:
+            if interaction.response.is_done():
+                await interaction.followup.send(embed=msg, ephemeral=True)
+            else:
+                await interaction.response.send_message(embed=msg, ephemeral=True)
+        except discord.NotFound:
+            pass
 
 
 async def setup(bot: commands.Bot):
