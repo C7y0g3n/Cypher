@@ -107,7 +107,11 @@ class Rules(commands.Cog):
     @is_admin()
     @app_commands.describe(role="Role to assign on acceptance")
     async def rulessetup_setrole(self, interaction: discord.Interaction, role: discord.Role):
-        await interaction.response.defer(ephemeral=True)
+        try:
+            await interaction.response.defer(ephemeral=True, thinking=True)
+        except discord.NotFound:
+            return
+
         if role >= interaction.guild.me.top_role:
             await interaction.followup.send(
                 embed=error_embed(
@@ -142,7 +146,11 @@ class Rules(commands.Cog):
         title: str = DEFAULT_TITLE,
         description: str = DEFAULT_DESCRIPTION,
     ):
-        await interaction.response.defer(ephemeral=True)
+        try:
+            await interaction.response.defer(ephemeral=True, thinking=True)
+        except discord.NotFound:
+            return
+
         role_id = await self.db.get_config(interaction.guild_id, "rules_role_id")
         if not role_id:
             await interaction.followup.send(
@@ -174,7 +182,11 @@ class Rules(commands.Cog):
     @rulessetup_group.command(name="status", description="Check the current rules panel configuration")
     @is_admin()
     async def rulessetup_status(self, interaction: discord.Interaction):
-        await interaction.response.defer(ephemeral=True)
+        try:
+            await interaction.response.defer(ephemeral=True, thinking=True)
+        except discord.NotFound:
+            return
+
         role_id = await self.db.get_config(interaction.guild_id, "rules_role_id")
         panel_ch_id = await self.db.get_config(interaction.guild_id, "rules_panel_channel_id")
 

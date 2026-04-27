@@ -103,7 +103,11 @@ class MarketCog(commands.Cog, name="Market"):
 
     @app_commands.command(name="market", description="View current stock prices")
     async def market(self, interaction: discord.Interaction):
-        await interaction.response.defer(thinking=True)
+        try:
+            await interaction.response.defer(thinking=True)
+        except discord.NotFound:
+            return
+
         stocks = await self.db.get_stocks(interaction.guild_id)
         if not stocks:
             await interaction.followup.send(
@@ -138,7 +142,10 @@ class MarketCog(commands.Cog, name="Market"):
             )
             return
 
-        await interaction.response.defer(thinking=True)
+        try:
+            await interaction.response.defer(thinking=True)
+        except discord.NotFound:
+            return
 
         stock = await self.db.get_stock(interaction.guild_id, ticker)
         if not stock:
@@ -193,7 +200,10 @@ class MarketCog(commands.Cog, name="Market"):
             )
             return
 
-        await interaction.response.defer(thinking=True)
+        try:
+            await interaction.response.defer(thinking=True)
+        except discord.NotFound:
+            return
 
         stock = await self.db.get_stock(interaction.guild_id, ticker)
         if not stock:
@@ -241,7 +251,11 @@ class MarketCog(commands.Cog, name="Market"):
     @app_commands.command(name="portfolio", description="View your stock holdings")
     @app_commands.describe(user="User to check (defaults to you)")
     async def portfolio(self, interaction: discord.Interaction, user: discord.Member | None = None):
-        await interaction.response.defer(thinking=True)
+        try:
+            await interaction.response.defer(thinking=True)
+        except discord.NotFound:
+            return
+
         target = user or interaction.user
         holdings = await self.db.get_holdings(target.id, interaction.guild_id)
 
