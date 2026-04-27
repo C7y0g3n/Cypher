@@ -103,7 +103,7 @@ class MarketCog(commands.Cog, name="Market"):
 
     @app_commands.command(name="market", description="View current stock prices")
     async def market(self, interaction: discord.Interaction):
-        await interaction.response.defer()
+        await interaction.response.defer(thinking=True)
         stocks = await self.db.get_stocks(interaction.guild_id)
         if not stocks:
             await interaction.followup.send(
@@ -132,12 +132,13 @@ class MarketCog(commands.Cog, name="Market"):
     @app_commands.command(name="invest", description="Spend CC to buy shares of a stock")
     @app_commands.describe(ticker="Stock ticker (e.g. NEON)", amount="CC to spend")
     async def invest(self, interaction: discord.Interaction, ticker: str, amount: int):
-        await interaction.response.defer()
         if amount <= 0:
-            await interaction.followup.send(
+            await interaction.response.send_message(
                 embed=error_embed("Amount must be positive."), ephemeral=True
             )
             return
+
+        await interaction.response.defer(thinking=True)
 
         stock = await self.db.get_stock(interaction.guild_id, ticker)
         if not stock:
@@ -186,12 +187,13 @@ class MarketCog(commands.Cog, name="Market"):
     @app_commands.command(name="divest", description="Sell shares of a stock for CC")
     @app_commands.describe(ticker="Stock ticker (e.g. NEON)", shares="Number of shares to sell")
     async def divest(self, interaction: discord.Interaction, ticker: str, shares: int):
-        await interaction.response.defer()
         if shares <= 0:
-            await interaction.followup.send(
+            await interaction.response.send_message(
                 embed=error_embed("Shares must be positive."), ephemeral=True
             )
             return
+
+        await interaction.response.defer(thinking=True)
 
         stock = await self.db.get_stock(interaction.guild_id, ticker)
         if not stock:
@@ -239,7 +241,7 @@ class MarketCog(commands.Cog, name="Market"):
     @app_commands.command(name="portfolio", description="View your stock holdings")
     @app_commands.describe(user="User to check (defaults to you)")
     async def portfolio(self, interaction: discord.Interaction, user: discord.Member | None = None):
-        await interaction.response.defer()
+        await interaction.response.defer(thinking=True)
         target = user or interaction.user
         holdings = await self.db.get_holdings(target.id, interaction.guild_id)
 
@@ -282,6 +284,24 @@ class MarketCog(commands.Cog, name="Market"):
             thumbnail=target.display_avatar.url,
         )
         await interaction.followup.send(embed=embed)
+
+    async def cog_app_command_error(self, interaction: discord.Interaction, error: app_commands.AppCommandError):
+        if isinstance(error, app_commands.CheckFailure):
+            msg = error_embed("You don't have permission to use this command.")
+        elif isinstance(error, app_commands.CommandInvokeError) and isinstance(error.original, discord.NotFound):
+            log.warning(f"Interaction expired for {interaction.user} in /invest: {error}")
+            return
+        else:
+            log.error(f"Market command error: {error}", exc_info=True)
+            msg = error_embed("An unexpected error occurred.")
+
+        try:
+            if not interaction.response.is_done():
+                await interaction.response.send_message(embed=msg, ephemeral=True)
+            else:
+                await interaction.followup.send(embed=msg, ephemeral=True)
+        except discord.NotFound:
+            pass
 
 
 async def setup(bot: commands.Bot):
