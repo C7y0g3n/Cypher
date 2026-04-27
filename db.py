@@ -1,6 +1,7 @@
 import asyncio
 import json
 import logging
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
@@ -11,12 +12,16 @@ log = logging.getLogger("cypher.db")
 
 MIGRATIONS_PATH = Path("./migrations")
 
+_CONFIG_CACHE_TTL = 60.0  # seconds; config values are admin-set and rarely change
+
 
 class Database:
     def __init__(self, db_path: str):
         self.db_path = db_path
         self._conn: Optional[aiosqlite.Connection] = None
         self._lock = asyncio.Lock()
+        # (guild_id, key) -> (value, monotonic_expiry)
+        self._config_cache: dict[tuple[int, str], tuple[Optional[str], float]] = {}
 
     async def init(self):
         Path(self.db_path).parent.mkdir(parents=True, exist_ok=True)
@@ -436,13 +441,23 @@ class Database:
     # ─── Config ───────────────────────────────────────────────────────────────
 
     async def get_config(self, guild_id: int, key: str) -> Optional[str]:
+        cache_key = (guild_id, key)
+        cached = self._config_cache.get(cache_key)
+        if cached is not None:
+            value, expires_at = cached
+            if time.monotonic() < expires_at:
+                return value
+
         async with self._conn.execute(
             "SELECT value FROM config WHERE guild_id=? AND key=?", (guild_id, key)
         ) as cur:
             row = await cur.fetchone()
-            return row["value"] if row else None
+        value = row["value"] if row else None
+        self._config_cache[cache_key] = (value, time.monotonic() + _CONFIG_CACHE_TTL)
+        return value
 
     async def set_config(self, guild_id: int, key: str, value: str):
+        self._config_cache.pop((guild_id, key), None)
         await self._conn.execute(
             "INSERT INTO config (guild_id, key, value) VALUES (?, ?, ?) "
             "ON CONFLICT(guild_id, key) DO UPDATE SET value=excluded.value",
