@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import secrets
 from datetime import datetime, timezone, timedelta
@@ -90,7 +91,7 @@ class Economy(commands.Cog):
         tracker["earned"] += cc_gain
         self._msg_cc_tracker[key] = tracker
 
-        await self.db.mutate_credits(message.author.id, message.guild.id, cc_gain)
+        asyncio.create_task(self.db.mutate_credits(message.author.id, message.guild.id, cc_gain))
 
     # ─── /balance ─────────────────────────────────────────────────────────────
 

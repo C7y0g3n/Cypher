@@ -71,6 +71,9 @@ class XPRanks(commands.Cog):
             return
 
         self._cooldowns[key] = now
+        asyncio.create_task(self._process_msg_xp(message))
+
+    async def _process_msg_xp(self, message: discord.Message):
         await self.db.update_last_xp_msg(message.author.id, message.guild.id)
 
         bonus = await self._event_bonus(message.guild.id)
